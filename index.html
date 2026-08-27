@@ -152,6 +152,15 @@
     50%{box-shadow:0 6px 22px rgba(193,84,74,0.6);}
   }
 
+  .end-live-btn{
+    background:var(--danger); color:#fff; border:none;
+    font-family:var(--mono); font-weight:600; font-size:12px; letter-spacing:0.06em;
+    padding:10px 18px; border-radius:999px; cursor:pointer; white-space:nowrap;
+    transition:all .15s ease;
+    animation:liveBtnPulse 1.6s ease-in-out infinite;
+  }
+  .end-live-btn:hover{filter:brightness(1.1); transform:translateY(-1px);}
+
   .live-banner{
     display:flex; align-items:center; gap:10px;
     padding:10px 24px;
@@ -636,7 +645,8 @@
   </div>
   <div class="topbar-meta" id="metaCount">— items</div>
   <button class="export-btn" id="exportBtn" title="Download your current list as a file to send back to Claude">⬇ Export</button>
-  <button class="go-live-btn" id="goLiveBtn">▶ Go Live</button>
+  <button class="go-live-btn" id="startLiveBtn">▶ Start Live</button>
+  <button class="end-live-btn" id="endLiveBtn" style="display:none;">■ End Live</button>
 </div>
 
 <div class="live-banner" id="liveBanner" style="display:none;">
@@ -689,7 +699,7 @@
           <button class="mark-sold-btn" id="markSoldBtn">Confirm Sold</button>
         </div>
         <div id="lockedNotice" class="locked-notice" style="display:none;">
-          🔒 Sold &amp; locked <button class="unlock-link" id="unlockLink">unlock to correct</button>
+          🔒 <span id="lockedNoticeText">Sold &amp; locked</span> <button class="unlock-link" id="unlockLink">unlock to correct</button>
         </div>
 
         <div class="focus-notes-wrap">
@@ -734,7 +744,7 @@ const storageAdapter = {
 };
 
 const STORAGE_KEY = 'crown-stone-show-state-v2';
-let state = { overlay: {}, order: null, duplicates: {} };
+let state = { overlay: {}, order: null, duplicates: {}, liveLotCounter: 0 };
 let items = [];
 let filtered = [];
 let currentFilter = 'all';
@@ -748,13 +758,13 @@ async function loadState(){
     if(res && res.value){
       const parsed = JSON.parse(res.value);
       if(parsed && parsed.overlay){
-        state = { overlay: parsed.overlay || {}, order: parsed.order || null, duplicates: parsed.duplicates || {} };
+        state = { overlay: parsed.overlay || {}, order: parsed.order || null, duplicates: parsed.duplicates || {}, liveLotCounter: parsed.liveLotCounter || 0 };
       } else if(parsed){
         // legacy flat map format
-        state = { overlay: parsed, order: null, duplicates: {} };
+        state = { overlay: parsed, order: null, duplicates: {}, liveLotCounter: 0 };
       }
     }
-  }catch(e){ state = { overlay: {}, order: null, duplicates: {} }; }
+  }catch(e){ state = { overlay: {}, order: null, duplicates: {}, liveLotCounter: 0 }; }
 }
 async function saveState(){
   try{ await storageAdapter.set(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
@@ -772,6 +782,7 @@ function initItems(){
         qty: (o.qty !== undefined) ? o.qty : it.qty,
         sold: !!o.sold,
         locked: !!o.locked,
+        lot: (o.lot !== undefined) ? o.lot : null,
         name: o.name !== undefined ? o.name : it.name,
         price: o.price !== undefined ? o.price : it.price,
         material: o.material !== undefined ? o.material : it.material,
@@ -800,6 +811,7 @@ let undoTimer = null;
 
 let liveModeActive = false;
 let currentRunningId = null;
+let sessionSoldLog = []; // {lot, sku, name, price} — cleared each time a live session starts
 
 function updateLiveBanner(){
   const banner = document.getElementById('liveBanner');
@@ -810,21 +822,33 @@ function updateLiveBanner(){
   }
   banner.style.display = 'flex';
   const running = items.find(x => x.id === currentRunningId);
+  const nextLot = (state.liveLotCounter || 0) + 1;
   text.textContent = running
-    ? `LIVE — Now running Lot #${String(running.num).padStart(2,'0')}: ${running.name}`
-    : 'LIVE — no item running yet. Tap ▶ on a piece to run it.';
+    ? `LIVE — Running Item No. ${String(running.num).padStart(2,'0')}: ${running.name} · Next sale = Lot #${nextLot}`
+    : `LIVE — Next sale will be Lot #${nextLot}. Tap ▶ on a piece to run it.`;
 }
 
-function setLiveActive(active){
+async function setLiveActive(active){
   liveModeActive = active;
-  const btn = document.getElementById('goLiveBtn');
+  const startBtn = document.getElementById('startLiveBtn');
+  const endBtn = document.getElementById('endLiveBtn');
   if(active){
-    btn.classList.add('active');
-    btn.textContent = '● Live Active';
+    startBtn.style.display = 'none';
+    endBtn.style.display = 'inline-block';
+    state.liveLotCounter = 0;
+    sessionSoldLog = [];
+    await saveState();
   } else {
-    btn.classList.remove('active');
-    btn.textContent = '▶ Go Live';
+    startBtn.style.display = 'inline-block';
+    endBtn.style.display = 'none';
     currentRunningId = null;
+    if(sessionSoldLog.length > 0){
+      const total = sessionSoldLog.reduce((sum, s) => sum + parseFloat(s.price || 0), 0);
+      const lines = sessionSoldLog.map(s => `Lot ${s.lot}: ${s.name} — $${s.price}`).join('\n');
+      window.alert(`Live session ended.\n\n${sessionSoldLog.length} item(s) sold, $${total.toFixed(2)} total:\n\n${lines}`);
+    } else {
+      window.alert('Live session ended. No items were marked sold this session.');
+    }
   }
   updateLiveBanner();
 }
@@ -833,10 +857,11 @@ function runItem(id){
   const it = items.find(x => x.id === id);
   if(!it) return;
   currentRunningId = id;
-  setLiveActive(true);
+  if(!liveModeActive) setLiveActive(true);
   filtered = items.slice();
   const idx = filtered.findIndex(x => x.id === id);
   openFocus(idx);
+  updateLiveBanner();
 }
 
 async function unlockItem(id){
@@ -999,7 +1024,7 @@ function renderGrid(){
       ${header}
       ${subHeader}
       <div class="card ${isSold ? 'sold' : ''} ${it.locked ? 'locked' : ''} ${dragReady ? '' : 'drag-disabled'}" data-id="${it.id}" ${dragReady && !it.locked ? 'draggable="true"' : ''}>
-        ${it.locked ? '<div class="lock-badge" data-id="'+it.id+'" title="Click to unlock for corrections">🔒 Sold</div>' : (isSold ? '<div class="sold-badge">Sold out</div>' : (it.isHero ? '<div class="hero-badge">★ Hero</div>' : ''))}
+        ${it.locked ? '<div class="lock-badge" data-id="'+it.id+'" title="Click to unlock for corrections">🔒 '+(it.lot ? 'Lot '+it.lot : 'Sold')+'</div>' : (isSold ? '<div class="sold-badge">Sold out</div>' : (it.isHero ? '<div class="hero-badge">★ Hero</div>' : ''))}
         <div class="card-handle" title="Drag to reorder">
           <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="1.6"/><circle cx="16" cy="6" r="1.6"/><circle cx="8" cy="12" r="1.6"/><circle cx="16" cy="12" r="1.6"/><circle cx="8" cy="18" r="1.6"/><circle cx="16" cy="18" r="1.6"/></svg>
         </div>
@@ -1237,6 +1262,7 @@ function renderFocus(){
   if(it.locked){
     document.getElementById('soldControls').style.display = 'none';
     document.getElementById('lockedNotice').style.display = 'flex';
+    document.getElementById('lockedNoticeText').textContent = it.lot ? `Sold as Lot #${it.lot} & locked` : 'Sold & locked';
   } else {
     document.getElementById('soldControls').style.display = 'block';
     document.getElementById('lockedNotice').style.display = 'none';
@@ -1251,15 +1277,20 @@ function renderFocus(){
 async function confirmItemSold(){
   const it = filtered[focusIndex];
   if(!it) return;
+  state.liveLotCounter = (state.liveLotCounter || 0) + 1;
+  const lot = state.liveLotCounter;
   it.sold = true;
   it.qty = 0;
   it.locked = true;
+  it.lot = lot;
   const srcItem = items.find(x => x.id === it.id);
-  if(srcItem){ srcItem.sold = true; srcItem.qty = 0; srcItem.locked = true; }
-  state.overlay[it.id] = { ...(state.overlay[it.id]||{}), sold: true, qty: 0, locked: true };
+  if(srcItem){ srcItem.sold = true; srcItem.qty = 0; srcItem.locked = true; srcItem.lot = lot; }
+  state.overlay[it.id] = { ...(state.overlay[it.id]||{}), sold: true, qty: 0, locked: true, lot };
+  sessionSoldLog.push({ lot, sku: it.sku, name: it.name, price: it.price });
   await saveState();
   renderFocus();
   renderGrid();
+  updateLiveBanner();
 }
 
 async function updateQty(delta){
@@ -1372,15 +1403,14 @@ async function saveNote(){
   await saveState();
 }
 
-document.getElementById('goLiveBtn').addEventListener('click', () => {
-  if(liveModeActive){
-    setLiveActive(false);
-    return;
-  }
+document.getElementById('startLiveBtn').addEventListener('click', () => {
   setLiveActive(true);
   applyFilters();
-  if(filtered.length === 0) return;
-  openFocus(0);
+  if(filtered.length > 0) openFocus(0);
+});
+
+document.getElementById('endLiveBtn').addEventListener('click', () => {
+  setLiveActive(false);
 });
 
 document.getElementById('exportBtn').addEventListener('click', () => {
