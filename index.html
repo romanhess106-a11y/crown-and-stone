@@ -143,15 +143,13 @@
   }
   .export-btn:hover{border-color:var(--gold); color:var(--gold-bright);}
 
-  .start-live-btn{
-    background:transparent; color:var(--danger); border:1.5px solid var(--danger);
-    font-family:var(--mono); font-size:12px; letter-spacing:0.04em; font-weight:700;
-    padding:9px 16px; border-radius:999px; cursor:pointer; white-space:nowrap;
-    transition:all .15s ease;
+  .go-live-btn.active{
+    background:var(--danger); border-color:var(--danger); color:#fff;
+    animation:liveBtnPulse 1.6s ease-in-out infinite;
   }
-  .start-live-btn:hover{background:rgba(193,84,74,0.08);}
-  .start-live-btn.active{
-    background:var(--danger); color:#fff; border-color:var(--danger);
+  @keyframes liveBtnPulse{
+    0%,100%{box-shadow:0 6px 16px rgba(193,84,74,0.35);}
+    50%{box-shadow:0 6px 22px rgba(193,84,74,0.6);}
   }
 
   .live-banner{
@@ -638,7 +636,6 @@
   </div>
   <div class="topbar-meta" id="metaCount">— items</div>
   <button class="export-btn" id="exportBtn" title="Download your current list as a file to send back to Claude">⬇ Export</button>
-  <button class="start-live-btn" id="startLiveBtn">● Start Live</button>
   <button class="go-live-btn" id="goLiveBtn">▶ Go Live</button>
 </div>
 
@@ -690,10 +687,6 @@
 
         <div id="soldControls">
           <button class="mark-sold-btn" id="markSoldBtn">Confirm Sold</button>
-          <div class="confirm-sold-row" id="confirmSoldRow" style="display:none;">
-            <button class="confirm-yes-btn" id="confirmYesBtn">✓ Yes, Sold</button>
-            <button class="confirm-no-btn" id="confirmNoBtn">✕ Cancel</button>
-          </div>
         </div>
         <div id="lockedNotice" class="locked-notice" style="display:none;">
           🔒 Sold &amp; locked <button class="unlock-link" id="unlockLink">unlock to correct</button>
@@ -822,14 +815,25 @@ function updateLiveBanner(){
     : 'LIVE — no item running yet. Tap ▶ on a piece to run it.';
 }
 
+function setLiveActive(active){
+  liveModeActive = active;
+  const btn = document.getElementById('goLiveBtn');
+  if(active){
+    btn.classList.add('active');
+    btn.textContent = '● Live Active';
+  } else {
+    btn.classList.remove('active');
+    btn.textContent = '▶ Go Live';
+    currentRunningId = null;
+  }
+  updateLiveBanner();
+}
+
 function runItem(id){
   const it = items.find(x => x.id === id);
   if(!it) return;
-  liveModeActive = true;
   currentRunningId = id;
-  document.getElementById('startLiveBtn').classList.add('active');
-  document.getElementById('startLiveBtn').textContent = '● Live Active';
-  updateLiveBanner();
+  setLiveActive(true);
   filtered = items.slice();
   const idx = filtered.findIndex(x => x.id === id);
   openFocus(idx);
@@ -1229,8 +1233,7 @@ function renderFocus(){
   document.getElementById('focusPrice').textContent = '$' + it.price;
   document.getElementById('qtyValue').textContent = it.qty;
 
-  document.getElementById('confirmSoldRow').style.display = 'none';
-
+  
   if(it.locked){
     document.getElementById('soldControls').style.display = 'none';
     document.getElementById('lockedNotice').style.display = 'flex';
@@ -1338,12 +1341,12 @@ document.getElementById('qtyMinus').addEventListener('click', (e) => { e.stopPro
 document.getElementById('qtyPlus').addEventListener('click', (e) => { e.stopPropagation(); updateQty(1); });
 document.getElementById('markSoldBtn').addEventListener('click', (e) => {
   e.stopPropagation();
-  document.getElementById('confirmSoldRow').style.display = 'flex';
-});
-document.getElementById('confirmYesBtn').addEventListener('click', (e) => { e.stopPropagation(); confirmItemSold(); });
-document.getElementById('confirmNoBtn').addEventListener('click', (e) => {
-  e.stopPropagation();
-  document.getElementById('confirmSoldRow').style.display = 'none';
+  const it = filtered[focusIndex];
+  if(!it) return;
+  const ok = window.confirm(`Mark "${it.name}" as SOLD?\n\nThis sets quantity to 0 and locks the piece from further edits.`);
+  if(ok){
+    confirmItemSold();
+  }
 });
 document.getElementById('unlockLink').addEventListener('click', async (e) => {
   e.stopPropagation();
@@ -1370,23 +1373,14 @@ async function saveNote(){
 }
 
 document.getElementById('goLiveBtn').addEventListener('click', () => {
+  if(liveModeActive){
+    setLiveActive(false);
+    return;
+  }
+  setLiveActive(true);
   applyFilters();
   if(filtered.length === 0) return;
   openFocus(0);
-});
-
-document.getElementById('startLiveBtn').addEventListener('click', () => {
-  liveModeActive = !liveModeActive;
-  const btn = document.getElementById('startLiveBtn');
-  if(liveModeActive){
-    btn.classList.add('active');
-    btn.textContent = '● Live Active';
-  } else {
-    btn.classList.remove('active');
-    btn.textContent = '● Start Live';
-    currentRunningId = null;
-  }
-  updateLiveBanner();
 });
 
 document.getElementById('exportBtn').addEventListener('click', () => {
