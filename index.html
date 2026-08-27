@@ -143,6 +143,82 @@
   }
   .export-btn:hover{border-color:var(--gold); color:var(--gold-bright);}
 
+  .start-live-btn{
+    background:transparent; color:var(--danger); border:1.5px solid var(--danger);
+    font-family:var(--mono); font-size:12px; letter-spacing:0.04em; font-weight:700;
+    padding:9px 16px; border-radius:999px; cursor:pointer; white-space:nowrap;
+    transition:all .15s ease;
+  }
+  .start-live-btn:hover{background:rgba(193,84,74,0.08);}
+  .start-live-btn.active{
+    background:var(--danger); color:#fff; border-color:var(--danger);
+  }
+
+  .live-banner{
+    display:flex; align-items:center; gap:10px;
+    padding:10px 24px;
+    background:rgba(193,84,74,0.08);
+    border-bottom:1px solid var(--danger);
+    font-family:var(--mono); font-size:12.5px; font-weight:600; color:var(--danger);
+    letter-spacing:0.03em;
+  }
+  .live-dot{
+    width:9px; height:9px; border-radius:50%; background:var(--danger);
+    animation:livePulse 1.4s ease-in-out infinite;
+  }
+  @keyframes livePulse{
+    0%,100%{opacity:1; transform:scale(1);}
+    50%{opacity:0.4; transform:scale(0.75);}
+  }
+
+  .card-run{
+    width:38px; height:38px; border-radius:50%;
+    border:1px solid var(--hairline); background:transparent;
+    color:var(--cream-dim); cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:all .15s ease; flex-shrink:0;
+  }
+  .card-run:hover{border-color:var(--danger); color:var(--danger); background:rgba(193,84,74,0.08);}
+  .card-run svg{width:15px; height:15px;}
+
+  .lock-badge{
+    position:absolute; top:10px; right:10px;
+    background:#3d3323; color:#efe6d6;
+    font-family:var(--mono); font-weight:700; font-size:9.5px; letter-spacing:0.08em;
+    padding:4px 9px; border-radius:5px; text-transform:uppercase;
+    display:flex; align-items:center; gap:4px; cursor:pointer;
+  }
+  .card.locked{opacity:0.55;}
+  .card.locked [contenteditable]{pointer-events:none; cursor:default;}
+  .card.locked .card-run,
+  .card.locked .card-duplicate,
+  .card.locked .card-delete{opacity:0.3; pointer-events:none;}
+
+  .focus-live-badge{
+    display:inline-flex; align-items:center; gap:8px;
+    background:rgba(193,84,74,0.1); border:1px solid var(--danger); color:var(--danger);
+    font-family:var(--mono); font-weight:700; font-size:12px; letter-spacing:0.05em;
+    padding:6px 14px; border-radius:999px; margin-bottom:6px; text-transform:uppercase;
+  }
+  .confirm-sold-row{display:flex; gap:10px; margin-top:8px;}
+  .confirm-yes-btn, .confirm-no-btn{
+    font-family:var(--mono); font-weight:700; font-size:13px; letter-spacing:0.04em;
+    padding:12px 22px; border-radius:999px; cursor:pointer; border:none;
+    transition:all .15s ease;
+  }
+  .confirm-yes-btn{background:var(--good); color:#fff;}
+  .confirm-yes-btn:hover{filter:brightness(1.08);}
+  .confirm-no-btn{background:transparent; border:1.5px solid var(--hairline); color:var(--cream-dim);}
+  .confirm-no-btn:hover{border-color:var(--danger); color:var(--danger);}
+  .locked-notice{
+    font-family:var(--mono); font-size:12.5px; color:var(--sold); letter-spacing:0.04em;
+    display:flex; align-items:center; gap:10px;
+  }
+  .unlock-link{
+    background:none; border:none; color:var(--cream-dim); text-decoration:underline;
+    font-family:var(--mono); font-size:11px; cursor:pointer; padding:0;
+  }
+
   .filterbar{
     display:flex; gap:8px; padding:12px 24px; overflow-x:auto;
     border-bottom:1px solid var(--hairline);
@@ -562,7 +638,13 @@
   </div>
   <div class="topbar-meta" id="metaCount">— items</div>
   <button class="export-btn" id="exportBtn" title="Download your current list as a file to send back to Claude">⬇ Export</button>
+  <button class="start-live-btn" id="startLiveBtn">● Start Live</button>
   <button class="go-live-btn" id="goLiveBtn">▶ Go Live</button>
+</div>
+
+<div class="live-banner" id="liveBanner" style="display:none;">
+  <span class="live-dot"></span>
+  <span id="liveBannerText">LIVE — no item running yet</span>
 </div>
 
 <div class="filterbar" id="filterBar">
@@ -592,6 +674,7 @@
     <div class="focus-stage">
       <div class="focus-img"><img id="focusImg" src="" alt=""></div>
       <div class="focus-info">
+        <div id="focusRunningBadge" class="focus-live-badge" style="display:none;">🔴 Running Now</div>
         <div id="focusHeroBadge" class="focus-hero-badge" style="display:none;">★ Hero Piece</div>
         <div class="focus-sku" id="focusSku"></div>
         <div class="focus-name" id="focusName"></div>
@@ -604,7 +687,18 @@
           <div class="qty-display"><b id="qtyValue">0</b> on hand</div>
           <button class="qty-btn" id="qtyPlus">+</button>
         </div>
-        <button class="mark-sold-btn" id="markSoldBtn">Mark as sold out</button>
+
+        <div id="soldControls">
+          <button class="mark-sold-btn" id="markSoldBtn">Confirm Sold</button>
+          <div class="confirm-sold-row" id="confirmSoldRow" style="display:none;">
+            <button class="confirm-yes-btn" id="confirmYesBtn">✓ Yes, Sold</button>
+            <button class="confirm-no-btn" id="confirmNoBtn">✕ Cancel</button>
+          </div>
+        </div>
+        <div id="lockedNotice" class="locked-notice" style="display:none;">
+          🔒 Sold &amp; locked <button class="unlock-link" id="unlockLink">unlock to correct</button>
+        </div>
+
         <div class="focus-notes-wrap">
           <label for="focusNotes">Your notes (private, only you see this)</label>
           <textarea id="focusNotes" placeholder="e.g. customer favorite, pairs with #42, mention hypoallergenic…" rows="2"></textarea>
@@ -684,6 +778,7 @@ function initItems(){
         ...it,
         qty: (o.qty !== undefined) ? o.qty : it.qty,
         sold: !!o.sold,
+        locked: !!o.locked,
         name: o.name !== undefined ? o.name : it.name,
         price: o.price !== undefined ? o.price : it.price,
         material: o.material !== undefined ? o.material : it.material,
@@ -709,6 +804,44 @@ function applyCustomOrder(){
 
 let lastDeleted = null;
 let undoTimer = null;
+
+let liveModeActive = false;
+let currentRunningId = null;
+
+function updateLiveBanner(){
+  const banner = document.getElementById('liveBanner');
+  const text = document.getElementById('liveBannerText');
+  if(!liveModeActive){
+    banner.style.display = 'none';
+    return;
+  }
+  banner.style.display = 'flex';
+  const running = items.find(x => x.id === currentRunningId);
+  text.textContent = running
+    ? `LIVE — Now running Lot #${String(running.num).padStart(2,'0')}: ${running.name}`
+    : 'LIVE — no item running yet. Tap ▶ on a piece to run it.';
+}
+
+function runItem(id){
+  const it = items.find(x => x.id === id);
+  if(!it) return;
+  liveModeActive = true;
+  currentRunningId = id;
+  document.getElementById('startLiveBtn').classList.add('active');
+  document.getElementById('startLiveBtn').textContent = '● Live Active';
+  updateLiveBanner();
+  filtered = items.slice();
+  const idx = filtered.findIndex(x => x.id === id);
+  openFocus(idx);
+}
+
+async function unlockItem(id){
+  state.overlay[id] = { ...(state.overlay[id]||{}), locked: false };
+  await saveState();
+  const it = items.find(x => x.id === id);
+  if(it) it.locked = false;
+  renderGrid();
+}
 
 async function duplicateItem(id){
   const it = items.find(x => x.id === id);
@@ -861,25 +994,28 @@ function renderGrid(){
     return `
       ${header}
       ${subHeader}
-      <div class="card ${isSold ? 'sold' : ''} ${dragReady ? '' : 'drag-disabled'}" data-id="${it.id}" ${dragReady ? 'draggable="true"' : ''}>
-        ${isSold ? '<div class="sold-badge">Sold out</div>' : (it.isHero ? '<div class="hero-badge">★ Hero</div>' : '')}
+      <div class="card ${isSold ? 'sold' : ''} ${it.locked ? 'locked' : ''} ${dragReady ? '' : 'drag-disabled'}" data-id="${it.id}" ${dragReady && !it.locked ? 'draggable="true"' : ''}>
+        ${it.locked ? '<div class="lock-badge" data-id="'+it.id+'" title="Click to unlock for corrections">🔒 Sold</div>' : (isSold ? '<div class="sold-badge">Sold out</div>' : (it.isHero ? '<div class="hero-badge">★ Hero</div>' : ''))}
         <div class="card-handle" title="Drag to reorder">
           <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="1.6"/><circle cx="16" cy="6" r="1.6"/><circle cx="8" cy="12" r="1.6"/><circle cx="16" cy="12" r="1.6"/><circle cx="8" cy="18" r="1.6"/><circle cx="16" cy="18" r="1.6"/></svg>
         </div>
-        <div class="card-num" contenteditable="true" spellcheck="false" inputmode="numeric" data-id="${it.id}" data-field="num" title="Click to move this piece to a new slot number">${String(it.num).padStart(2,'0')}</div>
+        <div class="card-num" contenteditable="${it.locked ? 'false' : 'true'}" spellcheck="false" inputmode="numeric" data-id="${it.id}" data-field="num" title="Click to move this piece to a new slot number">${String(it.num).padStart(2,'0')}</div>
         <div class="card-img"><img src="${it.image}" alt="" loading="lazy"></div>
         <div class="card-body">
           <div class="card-sku">${it.sku}</div>
-          <div class="card-name" contenteditable="true" spellcheck="false" data-id="${it.id}" data-field="name">${escapeHtml(it.name)}</div>
+          <div class="card-name" contenteditable="${it.locked ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="name">${escapeHtml(it.name)}</div>
           <div class="card-specs">
-            <span class="spec-tag" contenteditable="true" spellcheck="false" data-id="${it.id}" data-field="length">${escapeHtml(it.length || 'Add length')}</span>
-            <span class="spec-tag" contenteditable="true" spellcheck="false" data-id="${it.id}" data-field="width">${escapeHtml(it.width || 'Add width')}</span>
-            <span class="spec-tag material" contenteditable="true" spellcheck="false" data-id="${it.id}" data-field="material">${escapeHtml(it.material || 'Add material')}</span>
+            <span class="spec-tag" contenteditable="${it.locked ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="length">${escapeHtml(it.length || 'Add length')}</span>
+            <span class="spec-tag" contenteditable="${it.locked ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="width">${escapeHtml(it.width || 'Add width')}</span>
+            <span class="spec-tag material" contenteditable="${it.locked ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="material">${escapeHtml(it.material || 'Add material')}</span>
           </div>
         </div>
-        <div class="card-qty ${qtyClass}"><span contenteditable="true" spellcheck="false" inputmode="numeric" data-id="${it.id}" data-field="qty">${it.qty}</span> on hand</div>
-        <div class="card-price">$<span contenteditable="true" spellcheck="false" data-id="${it.id}" data-field="price">${escapeHtml(it.price)}</span></div>
+        <div class="card-qty ${qtyClass}"><span contenteditable="${it.locked ? 'false' : 'true'}" spellcheck="false" inputmode="numeric" data-id="${it.id}" data-field="qty">${it.qty}</span> on hand</div>
+        <div class="card-price">$<span contenteditable="${it.locked ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="price">${escapeHtml(it.price)}</span></div>
         <div class="card-actions">
+          <button class="card-run" data-id="${it.id}" title="Run this item live" aria-label="Run item">
+            <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
+          </button>
           <button class="card-duplicate" data-id="${it.id}" title="Duplicate item" aria-label="Duplicate item">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="9" y="9" width="12" height="12" rx="2"></rect>
@@ -901,7 +1037,8 @@ function renderGrid(){
 
   grid.querySelectorAll('.card').forEach(card => {
     card.addEventListener('click', (e) => {
-      if(e.target.closest('[contenteditable]') || e.target.closest('.card-delete') || e.target.closest('.card-duplicate')) return;
+      if(e.target.closest('[contenteditable]') || e.target.closest('.card-delete') || e.target.closest('.card-duplicate') || e.target.closest('.card-run') || e.target.closest('.lock-badge')) return;
+      if(card.classList.contains('locked')) return;
       const id = card.getAttribute('data-id');
       const idx = filtered.findIndex(it => it.id === id);
       openFocus(idx);
@@ -929,6 +1066,22 @@ function renderGrid(){
       e.stopPropagation();
       const id = btn.getAttribute('data-id');
       duplicateItem(id);
+    });
+  });
+
+  grid.querySelectorAll('.card-run').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.getAttribute('data-id');
+      runItem(id);
+    });
+  });
+
+  grid.querySelectorAll('.lock-badge').forEach(badge => {
+    badge.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = badge.getAttribute('data-id');
+      unlockItem(id);
     });
   });
 
@@ -1065,6 +1218,7 @@ function renderFocus(){
   document.getElementById('focusPosition').textContent = `${focusIndex+1} / ${filtered.length}`;
   document.getElementById('focusImg').src = it.image;
   document.getElementById('focusHeroBadge').style.display = it.isHero ? 'inline-block' : 'none';
+  document.getElementById('focusRunningBadge').style.display = (liveModeActive && currentRunningId === it.id) ? 'inline-flex' : 'none';
   document.getElementById('focusSku').textContent = `No. ${String(it.num).padStart(2,'0')} · ${it.sku}`;
   document.getElementById('focusName').textContent = it.name;
   const specParts = [];
@@ -1074,11 +1228,35 @@ function renderFocus(){
   document.getElementById('focusSpecs').innerHTML = specParts.join('');
   document.getElementById('focusPrice').textContent = '$' + it.price;
   document.getElementById('qtyValue').textContent = it.qty;
-  const btn = document.getElementById('markSoldBtn');
-  const isSold = it.sold || it.qty <= 0;
-  btn.textContent = isSold ? 'Sold out — click to restore' : 'Mark as sold out';
-  btn.classList.toggle('is-sold', isSold);
+
+  document.getElementById('confirmSoldRow').style.display = 'none';
+
+  if(it.locked){
+    document.getElementById('soldControls').style.display = 'none';
+    document.getElementById('lockedNotice').style.display = 'flex';
+  } else {
+    document.getElementById('soldControls').style.display = 'block';
+    document.getElementById('lockedNotice').style.display = 'none';
+    document.getElementById('markSoldBtn').style.display = 'inline-block';
+    document.getElementById('markSoldBtn').textContent = 'Confirm Sold';
+  }
+
   document.getElementById('focusNotes').value = it.note || '';
+  updateLiveBanner();
+}
+
+async function confirmItemSold(){
+  const it = filtered[focusIndex];
+  if(!it) return;
+  it.sold = true;
+  it.qty = 0;
+  it.locked = true;
+  const srcItem = items.find(x => x.id === it.id);
+  if(srcItem){ srcItem.sold = true; srcItem.qty = 0; srcItem.locked = true; }
+  state.overlay[it.id] = { ...(state.overlay[it.id]||{}), sold: true, qty: 0, locked: true };
+  await saveState();
+  renderFocus();
+  renderGrid();
 }
 
 async function updateQty(delta){
@@ -1158,7 +1336,24 @@ document.querySelector('.bounce-hint').addEventListener('click', () => navFocus(
 document.querySelector('.bounce-hint').style.cursor = 'pointer';
 document.getElementById('qtyMinus').addEventListener('click', (e) => { e.stopPropagation(); updateQty(-1); });
 document.getElementById('qtyPlus').addEventListener('click', (e) => { e.stopPropagation(); updateQty(1); });
-document.getElementById('markSoldBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleSold(); });
+document.getElementById('markSoldBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  document.getElementById('confirmSoldRow').style.display = 'flex';
+});
+document.getElementById('confirmYesBtn').addEventListener('click', (e) => { e.stopPropagation(); confirmItemSold(); });
+document.getElementById('confirmNoBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  document.getElementById('confirmSoldRow').style.display = 'none';
+});
+document.getElementById('unlockLink').addEventListener('click', async (e) => {
+  e.stopPropagation();
+  const it = filtered[focusIndex];
+  if(!it) return;
+  await unlockItem(it.id);
+  const srcItem = items.find(x => x.id === it.id);
+  if(srcItem) it.locked = srcItem.locked;
+  renderFocus();
+});
 document.getElementById('focusNotes').addEventListener('click', (e) => e.stopPropagation());
 document.getElementById('focusNotes').addEventListener('blur', saveNote);
 
@@ -1178,6 +1373,20 @@ document.getElementById('goLiveBtn').addEventListener('click', () => {
   applyFilters();
   if(filtered.length === 0) return;
   openFocus(0);
+});
+
+document.getElementById('startLiveBtn').addEventListener('click', () => {
+  liveModeActive = !liveModeActive;
+  const btn = document.getElementById('startLiveBtn');
+  if(liveModeActive){
+    btn.classList.add('active');
+    btn.textContent = '● Live Active';
+  } else {
+    btn.classList.remove('active');
+    btn.textContent = '● Start Live';
+    currentRunningId = null;
+  }
+  updateLiveBanner();
 });
 
 document.getElementById('exportBtn').addEventListener('click', () => {
