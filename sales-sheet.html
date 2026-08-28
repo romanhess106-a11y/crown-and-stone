@@ -73,6 +73,10 @@
 
   .content{max-width:900px; margin:0 auto; padding:30px 28px 80px;}
 
+  .session-title{
+    font-family:var(--serif); font-weight:600; font-size:26px; color:var(--cream);
+    margin:0 0 6px;
+  }
   .session-picker{
     display:flex; align-items:center; gap:10px; margin-bottom:22px; flex-wrap:wrap;
   }
@@ -138,6 +142,7 @@
   </div>
 
   <div class="content">
+    <h1 class="session-title" id="sessionTitle">Sales Sheet</h1>
     <div class="session-picker">
       <label for="sessionSelect">Viewing:</label>
       <select id="sessionSelect"></select>
@@ -184,22 +189,24 @@ function escapeHtml(str){
 function loadState(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
-    if(!raw) return { sessionLog: [], liveLotCounter: 0, sessionArchive: [] };
+    if(!raw) return { sessionLog: [], liveLotCounter: 0, sessionArchive: [], sessionStartedAt: null };
     const parsed = JSON.parse(raw);
     return {
       sessionLog: parsed.sessionLog || [],
       liveLotCounter: parsed.liveLotCounter || 0,
-      sessionArchive: parsed.sessionArchive || []
+      sessionArchive: parsed.sessionArchive || [],
+      sessionStartedAt: parsed.sessionStartedAt || null
     };
-  }catch(e){ return { sessionLog: [], liveLotCounter: 0, sessionArchive: [] }; }
+  }catch(e){ return { sessionLog: [], liveLotCounter: 0, sessionArchive: [], sessionStartedAt: null }; }
 }
 
 function formatDate(iso){
+  if(!iso) return null;
   try{
     const d = new Date(iso);
     return d.toLocaleDateString(undefined, { month:'short', day:'numeric' }) + ' at ' +
       d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
-  }catch(e){ return iso; }
+  }catch(e){ return null; }
 }
 
 let selectedSessionValue = 'current';
@@ -223,18 +230,24 @@ function render(){
   const state = loadState();
   populateSessionPicker(state);
 
-  let log, nextLot;
+  let log, nextLot, startedAt;
   if(selectedSessionValue === 'current'){
     log = state.sessionLog || [];
     nextLot = (state.liveLotCounter || 0) + 1;
+    startedAt = state.sessionStartedAt;
     document.getElementById('liveStatus').style.display = 'flex';
   } else {
     const idx = parseInt(selectedSessionValue.replace('archive-',''), 10);
     const archived = state.sessionArchive[idx];
     log = archived ? archived.log : [];
     nextLot = null;
+    startedAt = archived ? archived.startedAt : null;
     document.getElementById('liveStatus').style.display = 'none';
   }
+
+  const titleEl = document.getElementById('sessionTitle');
+  const startedLabel = formatDate(startedAt);
+  titleEl.textContent = startedLabel ? `Sales Sheet — Started ${startedLabel}` : 'Sales Sheet';
 
   const sorted = [...log].sort((a,b) => a.lot - b.lot);
 
