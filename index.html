@@ -585,10 +585,28 @@
     transition:transform .12s ease, border-color .15s ease, box-shadow .15s ease;
     position:relative;
     display:grid;
-    grid-template-columns:20px 52px 230px 1fr auto auto auto;
+    grid-template-columns:20px 46px 210px 1fr 62px 62px 60px 50px 50px 92px 74px;
     align-items:center;
-    gap:22px;
-    padding:14px 20px 14px 14px;
+    gap:14px;
+    padding:12px 16px 12px 12px;
+  }
+  .grid-header{
+    display:grid;
+    grid-template-columns:20px 46px 210px 1fr 62px 62px 60px 50px 50px 92px 74px;
+    gap:14px;
+    padding:0 16px 10px 12px;
+    font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:0.06em;
+    text-transform:uppercase; color:var(--cream-dim);
+    border-bottom:1px solid var(--hairline); margin-bottom:12px;
+  }
+  .grid-header > div:nth-child(5),
+  .grid-header > div:nth-child(6),
+  .grid-header > div:nth-child(7),
+  .grid-header > div:nth-child(8),
+  .grid-header > div:nth-child(9){ text-align:center; }
+  .grid-header > div:nth-child(11){ text-align:center; }
+  @media (max-width:900px){
+    .grid-header{display:none;}
   }
   .card-num{
     font-family:var(--serif); font-weight:600; font-size:22px;
@@ -689,19 +707,29 @@
   }
   .spec-tag.material{color:var(--gold-bright); border-color:rgba(184,134,63,0.35);}
   .card-name{
-    font-family:var(--serif); font-size:21px; line-height:1.22;
+    font-family:var(--serif); font-size:18px; line-height:1.22;
     color:var(--cream); font-weight:500;
     display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
   }
-  .card-price{
-    font-family:var(--mono); font-size:22px; color:var(--gold-bright); font-weight:600;
-    text-align:right; white-space:nowrap;
+  .col-cost, .col-retail{
+    font-family:var(--mono); font-size:14px; color:var(--cream); font-weight:600;
+    text-align:center; white-space:nowrap;
   }
-  .card-qty{
-    font-family:var(--mono); font-size:12px; color:var(--cream-dim);
-    text-align:right; white-space:nowrap; min-width:88px;
+  .col-retail{color:var(--gold-bright);}
+  .col-onhand, .col-sold, .col-left{
+    font-family:var(--mono); font-size:14px; color:var(--cream); font-weight:600;
+    text-align:center; white-space:nowrap;
   }
-  .card-qty.low{color:var(--danger);}
+  .col-left{color:var(--good);}
+  .col-left.low{color:var(--danger);}
+  .status-badge{
+    font-family:var(--mono); font-size:10.5px; font-weight:700; letter-spacing:0.03em;
+    text-align:center; padding:6px 4px; border-radius:999px; text-transform:capitalize;
+    justify-self:center; width:100%; max-width:90px;
+  }
+  .status-badge.available{background:rgba(95,138,83,0.15); color:var(--good);}
+  .status-badge.low-stock{background:rgba(184,134,63,0.15); color:var(--gold-bright);}
+  .status-badge.sold-out{background:rgba(193,84,74,0.15); color:var(--danger);}
   .sold-badge{
     position:absolute; top:10px; right:10px;
     background:var(--sold); color:#3d3323;
@@ -758,12 +786,26 @@
     font-size:13px; font-weight:600; letter-spacing:0.04em; cursor:pointer; text-transform:uppercase;
   }
   @media (max-width:760px){
-    .card{grid-template-columns:0px 32px 90px 1fr; grid-template-rows:auto auto; row-gap:6px; padding:10px 14px 10px 10px;}
-    .card-handle{display:none;}
-    .card-img{width:82px; height:82px;}
-    .card-num{font-size:16px;}
-    .card-price, .card-qty{text-align:left; grid-column:4;}
-    .card-name{font-size:17px;}
+    .card{
+      display:flex; flex-wrap:wrap; align-items:center; gap:10px;
+      padding:12px 14px 12px 10px;
+    }
+    .card-handle{order:1;}
+    .card-num{order:2; font-size:14px; min-width:auto;}
+    .card-img{order:3; width:82px; height:82px;}
+    .card-body{order:4; flex:1; min-width:150px;}
+    .card-name{font-size:16px;}
+    .col-cost, .col-retail, .col-onhand, .col-sold, .col-left{
+      order:5; display:inline-flex; align-items:baseline; gap:3px; text-align:left;
+    }
+    .status-badge{order:5;}
+    .card-actions{order:6; margin-left:auto;}
+    .col-cost::before{content:'Cost'; font-family:var(--mono); font-size:9px; text-transform:uppercase; color:var(--cream-dim);}
+    .col-retail::before{content:'Retail'; font-family:var(--mono); font-size:9px; text-transform:uppercase; color:var(--cream-dim);}
+    .col-onhand::before{content:'On Hand'; font-family:var(--mono); font-size:9px; text-transform:uppercase; color:var(--cream-dim);}
+    .col-sold::before{content:'Sold'; font-family:var(--mono); font-size:9px; text-transform:uppercase; color:var(--cream-dim);}
+    .col-left::before{content:'Left'; font-family:var(--mono); font-size:9px; text-transform:uppercase; color:var(--cream-dim);}
+    .grid-header{display:none;}
   }
 
   .empty{
@@ -1156,6 +1198,19 @@
 <div class="grid-wrap">
   <div class="grid-count" id="gridCount"></div>
   <div class="reorder-hint" id="reorderHint" style="display:none;"></div>
+  <div class="grid-header" id="gridHeader">
+    <div></div>
+    <div>Lot #</div>
+    <div>Image</div>
+    <div>Item Details</div>
+    <div>Cost</div>
+    <div>Retail</div>
+    <div>On Hand</div>
+    <div>Sold</div>
+    <div>Left</div>
+    <div>Status</div>
+    <div>Actions</div>
+  </div>
   <div class="grid" id="grid"></div>
   <div class="empty" id="emptyState" style="display:none;">No pieces match that search.</div>
 </div>
@@ -1284,6 +1339,7 @@ function initItems(){
         length: o.length !== undefined ? o.length : it.length,
         width: o.width !== undefined ? o.width : it.width,
         image: o.image !== undefined ? o.image : it.image,
+        retailPrice: o.retailPrice !== undefined ? o.retailPrice : (it.retailPrice || ''),
         note: o.note || ''
       };
     });
@@ -1825,33 +1881,17 @@ function renderGrid(){
   }
   empty.style.display = 'none';
 
-  const useGroups = false; // catalog order is now a curated auction sequence, not category blocks
-
   grid.innerHTML = filtered.map((it, i) => {
     const isSold = it.sold || it.qty <= 0;
-    const qtyClass = (!isSold && it.qty <= 5) ? 'low' : '';
-    let header = '', subHeader = '';
-    if(useGroups){
-      const showHeader = i === 0 || filtered[i-1].category !== it.category;
-      const showSubHeader = showHeader || filtered[i-1].style !== it.style;
-      header = showHeader ? `
-        <div class="section-header">
-          <h2>${escapeHtml(it.category)}</h2>
-          <div class="line"></div>
-          <div class="count">${filtered.filter(x=>x.category===it.category).length} pieces</div>
-        </div>` : '';
-      subHeader = showSubHeader ? `
-        <div class="subsection-header">
-          <h3>${escapeHtml(it.style)}</h3>
-          <div class="subline"></div>
-          <div class="subcount">${filtered.filter(x=>x.category===it.category && x.style===it.style).length}</div>
-        </div>` : '';
-    }
+    const soldCount = (it.soldEvents && it.soldEvents.length) || 0;
+    const onHand = it.qty + soldCount;
+    const leftLow = !it.locked && it.qty > 0 && it.qty <= 5;
+    let statusClass = 'available', statusLabel = 'Available';
+    if(it.locked){ statusClass = 'sold-out'; statusLabel = 'Sold Out'; }
+    else if(leftLow){ statusClass = 'low-stock'; statusLabel = 'Low Stock'; }
     return `
-      ${header}
-      ${subHeader}
       <div class="card ${isSold ? 'sold' : ''} ${it.locked ? 'locked' : ''} ${dragReady ? '' : 'drag-disabled'} ${selectMode ? 'select-mode' : ''} ${selectedIds.has(it.id) ? 'selected' : ''}" data-id="${it.id}" ${dragReady && !it.locked && !selectMode ? 'draggable="true"' : ''}>
-        ${it.locked ? '<div class="lock-badge" data-id="'+it.id+'" title="Click to restock the last unit sold and correct a mistake">🔒 Sold Out'+(it.soldEvents && it.soldEvents.length ? ' · '+it.soldEvents.length+' sold' : '')+'</div>' : (isSold ? '<div class="sold-badge">Sold out</div>' : (it.isHero ? '<div class="hero-badge">★ Hero</div>' : ''))}
+        ${it.isHero ? '<div class="hero-badge">★ Hero</div>' : ''}
         ${selectMode
           ? `<div class="card-select"><input type="checkbox" class="select-checkbox" data-id="${it.id}" ${selectedIds.has(it.id) ? 'checked' : ''}></div>`
           : `<div class="card-handle" title="Drag to reorder">
@@ -1865,17 +1905,21 @@ function renderGrid(){
           </div>` : ''}
         </div>
         <div class="card-body">
-          <div class="card-sku">${it.sku}</div>
           <div class="card-name" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="name">${escapeHtml(it.name)}</div>
           <div class="card-specs">
+            <span class="card-sku">SKU ${it.sku}</span>
             <span class="spec-tag" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="length">${escapeHtml(it.length || 'Add length')}</span>
             <span class="spec-tag" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="width">${escapeHtml(it.width || 'Add width')}</span>
             <span class="spec-tag material" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="material">${escapeHtml(it.material || 'Add material')}</span>
           </div>
         </div>
-        <div class="card-qty ${qtyClass}"><span contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" inputmode="numeric" data-id="${it.id}" data-field="qty">${it.qty}</span> on hand${(it.soldEvents && it.soldEvents.length && !it.locked) ? ' · '+it.soldEvents.length+' sold' : ''}</div>
-        <div class="card-price">$<span contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="price">${escapeHtml(it.price)}</span></div>
-        ${selectMode ? '' : `
+        <div class="col-cost">$<span contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="price">${escapeHtml(it.price)}</span></div>
+        <div class="col-retail">$<span contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="retailPrice">${escapeHtml(it.retailPrice || '—')}</span></div>
+        <div class="col-onhand">${onHand}</div>
+        <div class="col-sold">${soldCount}</div>
+        <div class="col-left ${leftLow ? 'low' : ''}"><span contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" inputmode="numeric" data-id="${it.id}" data-field="qty">${it.qty}</span></div>
+        <div class="status-badge ${statusClass}" ${it.locked ? `data-id="${it.id}" title="Click to restock the last unit sold and correct a mistake"` : ''}>${statusLabel}</div>
+        ${selectMode ? '<div></div>' : `
         <div class="card-actions">
           <button class="card-run" data-id="${it.id}" title="Run this item live" aria-label="Run item">
             <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
@@ -1899,7 +1943,7 @@ function renderGrid(){
         toggleSelected(id);
         return;
       }
-      if(e.target.closest('[contenteditable]') || e.target.closest('.card-duplicate') || e.target.closest('.card-run') || e.target.closest('.lock-badge') || e.target.closest('.card-img-clickable')) return;
+      if(e.target.closest('[contenteditable]') || e.target.closest('.card-duplicate') || e.target.closest('.card-run') || e.target.closest('.status-badge.sold-out') || e.target.closest('.card-img-clickable')) return;
       if(card.classList.contains('locked')) return;
       const id = card.getAttribute('data-id');
       const idx = filtered.findIndex(it => it.id === id);
@@ -1948,11 +1992,12 @@ function renderGrid(){
     });
   });
 
-  grid.querySelectorAll('.lock-badge').forEach(badge => {
+  grid.querySelectorAll('.status-badge.sold-out').forEach(badge => {
+    badge.style.cursor = 'pointer';
     badge.addEventListener('click', (e) => {
       e.stopPropagation();
       const id = badge.getAttribute('data-id');
-      unlockItem(id);
+      if(id) unlockItem(id);
     });
   });
 
@@ -2032,6 +2077,12 @@ async function commitEdit(el){
     value = isNaN(num) ? it.price : num.toFixed(2);
     el.textContent = value;
   }
+  if(field === 'retailPrice'){
+    const cleaned = value.replace(/[^0-9.]/g, '');
+    const num = parseFloat(cleaned);
+    value = (cleaned === '' || isNaN(num)) ? '' : num.toFixed(2);
+    el.textContent = value || '—';
+  }
   if(field === 'qty'){
     const num = parseInt(value.replace(/[^0-9]/g, ''), 10);
     value = isNaN(num) ? it.qty : Math.max(0, num);
@@ -2052,8 +2103,8 @@ async function commitEdit(el){
   if(field === 'width' && value === ''){
     el.textContent = 'Add width';
   }
-  if(field === 'qty'){
-    renderGrid(); // refresh low-stock styling / filter membership
+  if(field === 'qty' || field === 'retailPrice'){
+    renderGrid(); // refresh On Hand/Left/Status columns which derive from qty
   }
 }
 
