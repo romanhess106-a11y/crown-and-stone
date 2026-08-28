@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crown & Stone — Sales Sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#f7f3ea; --panel:#ffffff; --panel-2:#fbf6ec; --hairline:#e3d9c6;
+    --cream:#2b2620; --cream-dim:#8a7d6a; --gold:#b8863f; --gold-bright:#9c6f2e;
+    --good:#5f8a53; --danger:#c1544a;
+    --serif:'Fraunces',serif; --mono:'IBM Plex Mono',monospace; --sans:'Inter',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(184,134,63,0.07), transparent 60%),
+      var(--ink);
+    color:var(--cream); font-family:var(--sans); min-height:100vh; -webkit-font-smoothing:antialiased;
+  }
+  .app-hidden{display:none !important;}
+
+  /* lock screen (mirrors main board) */
+  .lock-screen{
+    position:fixed; inset:0; z-index:500; background:var(--ink);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .lock-card{
+    background:var(--panel); border:1px solid var(--hairline); border-radius:18px;
+    padding:40px 36px; width:100%; max-width:340px; box-shadow:0 30px 80px rgba(43,38,32,0.18);
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+  }
+  .lock-wordmark{font-family:var(--serif); font-weight:600; font-size:22px; color:var(--gold-bright);}
+  .lock-sub{font-family:var(--mono); font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:var(--cream-dim); margin-bottom:22px;}
+  .lock-card input{
+    width:100%; background:var(--panel-2); border:1px solid var(--hairline); border-radius:10px;
+    padding:13px 16px; font-family:var(--mono); font-size:15px; color:var(--cream);
+    outline:none; text-align:center; letter-spacing:0.08em;
+  }
+  .lock-card input:focus{border-color:var(--gold);}
+  .lock-card button{
+    width:100%; margin-top:12px; background:var(--gold); color:#fdf9f0; border:none;
+    font-family:var(--mono); font-weight:600; font-size:13px; letter-spacing:0.06em; text-transform:uppercase;
+    padding:13px; border-radius:10px; cursor:pointer;
+  }
+  .lock-card button:hover{background:var(--gold-bright);}
+  .lock-error{margin-top:14px; font-family:var(--mono); font-size:12px; color:var(--danger); text-align:center;}
+
+  /* header */
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:20px 28px; border-bottom:1px solid var(--hairline);
+    background:rgba(255,255,255,0.7); backdrop-filter:blur(8px);
+    position:sticky; top:0; z-index:10;
+  }
+  .wordmark{font-family:var(--serif); font-weight:600; font-size:22px; color:var(--gold-bright); display:flex; align-items:baseline; gap:8px;}
+  .wordmark small{font-family:var(--mono); font-size:10px; letter-spacing:0.18em; text-transform:uppercase; color:var(--cream-dim); font-weight:500;}
+  .live-status{
+    display:flex; align-items:center; gap:8px;
+    font-family:var(--mono); font-weight:700; font-size:12px; letter-spacing:0.05em; color:var(--danger);
+  }
+  .live-dot{width:9px; height:9px; border-radius:50%; background:var(--danger); animation:pulse 1.4s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1; transform:scale(1);} 50%{opacity:0.4; transform:scale(0.75);}}
+  .back-link{
+    font-family:var(--mono); font-size:12px; color:var(--cream-dim); text-decoration:none;
+    border:1px solid var(--hairline); padding:9px 16px; border-radius:999px; transition:all .15s ease;
+  }
+  .back-link:hover{border-color:var(--gold); color:var(--gold-bright);}
+
+  .content{max-width:900px; margin:0 auto; padding:30px 28px 80px;}
+  .summary-row{
+    display:flex; gap:16px; margin-bottom:26px; flex-wrap:wrap;
+  }
+  .summary-card{
+    flex:1; min-width:160px; background:var(--panel); border:1px solid var(--hairline); border-radius:14px;
+    padding:18px 20px;
+  }
+  .summary-label{font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--cream-dim); margin-bottom:6px;}
+  .summary-value{font-family:var(--serif); font-weight:600; font-size:28px; color:var(--gold-bright);}
+
+  table{width:100%; border-collapse:collapse; font-family:var(--mono); font-size:14px; background:var(--panel); border-radius:14px; overflow:hidden; border:1px solid var(--hairline);}
+  thead th{
+    text-align:left; padding:14px 16px; background:var(--panel-2); color:var(--cream-dim);
+    font-size:11px; letter-spacing:0.06em; text-transform:uppercase; border-bottom:1px solid var(--hairline);
+  }
+  tbody td{padding:13px 16px; border-bottom:1px solid var(--hairline); color:var(--cream);}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:first-child td{background:rgba(184,134,63,0.08);}
+  .lot-cell{font-weight:700; color:var(--gold-bright);}
+  .num-cell{color:var(--cream-dim);}
+  .empty-state{
+    text-align:center; padding:80px 20px; color:var(--cream-dim);
+    font-family:var(--serif); font-style:italic; font-size:18px;
+  }
+  .refresh-note{
+    text-align:center; margin-top:20px; font-family:var(--mono); font-size:11px; color:var(--cream-dim);
+  }
+</style>
+</head>
+<body>
+
+<div class="lock-screen" id="lockScreen">
+  <div class="lock-card">
+    <div class="lock-wordmark">CROWN &amp; STONE</div>
+    <div class="lock-sub">Sales Sheet</div>
+    <input type="password" id="lockInput" placeholder="Enter password" autocomplete="off" inputmode="numeric">
+    <button id="lockSubmit">Unlock</button>
+    <div class="lock-error" id="lockError" style="display:none;">Incorrect password — try again.</div>
+  </div>
+</div>
+
+<div id="appRoot" class="app-hidden">
+  <div class="topbar">
+    <div class="wordmark">CROWN &amp; STONE <small>Sales Sheet</small></div>
+    <div class="live-status" id="liveStatus" style="display:none;">
+      <span class="live-dot"></span> LIVE — updating in real time
+    </div>
+    <a class="back-link" href="index.html">‹ Back to Show Board</a>
+  </div>
+
+  <div class="content">
+    <div class="summary-row">
+      <div class="summary-card">
+        <div class="summary-label">Items Sold</div>
+        <div class="summary-value" id="summaryCount">0</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Total Revenue</div>
+        <div class="summary-value" id="summaryTotal">$0.00</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">Next Lot #</div>
+        <div class="summary-value" id="summaryNextLot">1</div>
+      </div>
+    </div>
+
+    <table id="salesTable" style="display:none;">
+      <thead>
+        <tr><th>Lot</th><th>No.</th><th>SKU</th><th>Item</th><th>Price</th></tr>
+      </thead>
+      <tbody id="salesBody"></tbody>
+    </table>
+    <div class="empty-state" id="emptyState">No sales recorded yet. This page updates automatically the moment a sale is confirmed on the show board.</div>
+
+    <div class="refresh-note">Auto-updates live — no need to refresh this page.</div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'crown-stone-show-state-v2';
+const UNLOCK_KEY = 'crown-stone-unlock-v1';
+const APP_PASSWORD = '123456';
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str == null ? '' : String(str);
+  return d.innerHTML;
+}
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return { sessionLog: [], liveLotCounter: 0 };
+    const parsed = JSON.parse(raw);
+    return { sessionLog: parsed.sessionLog || [], liveLotCounter: parsed.liveLotCounter || 0 };
+  }catch(e){ return { sessionLog: [], liveLotCounter: 0 }; }
+}
+
+function render(){
+  const state = loadState();
+  const log = state.sessionLog || [];
+  const sorted = [...log].sort((a,b) => a.lot - b.lot);
+
+  document.getElementById('summaryCount').textContent = log.length;
+  const total = log.reduce((sum, s) => sum + parseFloat(s.price || 0), 0);
+  document.getElementById('summaryTotal').textContent = '$' + total.toFixed(2);
+  document.getElementById('summaryNextLot').textContent = (state.liveLotCounter || 0) + 1;
+
+  const table = document.getElementById('salesTable');
+  const empty = document.getElementById('emptyState');
+  const body = document.getElementById('salesBody');
+
+  if(sorted.length === 0){
+    table.style.display = 'none';
+    empty.style.display = 'block';
+    return;
+  }
+  table.style.display = 'table';
+  empty.style.display = 'none';
+
+  body.innerHTML = sorted.map(s => `
+    <tr>
+      <td class="lot-cell">#${escapeHtml(s.lot)}</td>
+      <td class="num-cell">${String(s.num).padStart(2,'0')}</td>
+      <td>${escapeHtml(s.sku)}</td>
+      <td>${escapeHtml(s.name)}</td>
+      <td>$${escapeHtml(s.price)}</td>
+    </tr>
+  `).join('');
+}
+
+// live cross-tab updates: fires in THIS tab whenever another tab (the show
+// board) writes to localStorage.
+window.addEventListener('storage', (e) => {
+  if(e.key === STORAGE_KEY){
+    render();
+    document.getElementById('liveStatus').style.display = 'flex';
+  }
+});
+
+// fallback polling in case the storage event doesn't fire in some browser contexts
+setInterval(render, 4000);
+
+// --- lock screen ---
+function unlockApp(){
+  document.getElementById('lockScreen').style.display = 'none';
+  document.getElementById('appRoot').classList.remove('app-hidden');
+  render();
+}
+function wireLockScreen(){
+  const input = document.getElementById('lockInput');
+  const btn = document.getElementById('lockSubmit');
+  const err = document.getElementById('lockError');
+  const attempt = () => {
+    if(input.value === APP_PASSWORD){
+      try{ localStorage.setItem(UNLOCK_KEY, 'true'); }catch(e){}
+      err.style.display = 'none';
+      unlockApp();
+    } else {
+      err.style.display = 'block';
+      input.value = '';
+      input.focus();
+    }
+  };
+  btn.addEventListener('click', attempt);
+  input.addEventListener('keydown', (e) => { if(e.key === 'Enter'){ e.preventDefault(); attempt(); } });
+}
+
+(function boot(){
+  wireLockScreen();
+  let alreadyUnlocked = false;
+  try{ alreadyUnlocked = localStorage.getItem(UNLOCK_KEY) === 'true'; }catch(e){}
+  if(alreadyUnlocked){
+    unlockApp();
+  } else {
+    document.getElementById('lockInput').focus();
+  }
+})();
+</script>
+</body>
+</html>
