@@ -585,14 +585,14 @@
     transition:transform .12s ease, border-color .15s ease, box-shadow .15s ease;
     position:relative;
     display:grid;
-    grid-template-columns:20px 46px 210px 1fr 62px 62px 60px 50px 50px 92px 74px;
+    grid-template-columns:20px 46px 210px 1fr 70px 70px 70px 60px 84px;
     align-items:center;
     gap:14px;
     padding:12px 16px 12px 12px;
   }
   .grid-header{
     display:grid;
-    grid-template-columns:20px 46px 210px 1fr 62px 62px 60px 50px 50px 92px 74px;
+    grid-template-columns:20px 46px 210px 1fr 70px 70px 70px 60px 84px;
     gap:14px;
     padding:0 16px 10px 12px;
     font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:0.06em;
@@ -602,9 +602,8 @@
   .grid-header > div:nth-child(5),
   .grid-header > div:nth-child(6),
   .grid-header > div:nth-child(7),
-  .grid-header > div:nth-child(8),
+  .grid-header > div:nth-child(8){ text-align:center; }
   .grid-header > div:nth-child(9){ text-align:center; }
-  .grid-header > div:nth-child(11){ text-align:center; }
   @media (max-width:900px){
     .grid-header{display:none;}
   }
@@ -874,8 +873,13 @@
     font-family:var(--mono); font-size:18px; color:var(--cream-dim); text-decoration:line-through;
   }
   .focus-qty-row{
-    display:flex; align-items:center; gap:14px; margin-top:6px;
+    display:flex; align-items:center; gap:14px; margin-top:6px; flex-wrap:wrap;
   }
+  .focus-sold-stat{
+    font-family:var(--mono); font-size:14px; color:var(--cream-dim);
+    padding:8px 16px; border-radius:999px; background:var(--panel-2); border:1px solid var(--hairline);
+  }
+  .focus-sold-stat b{color:var(--gold-bright); font-size:16px;}
   .qty-btn{
     width:44px; height:44px; border-radius:50%; border:1px solid var(--hairline);
     background:var(--panel); color:var(--cream); font-size:20px; cursor:pointer;
@@ -1206,9 +1210,7 @@
     <div>Cost</div>
     <div>Retail</div>
     <div>On Hand</div>
-    <div>Sold</div>
     <div>Left</div>
-    <div>Status</div>
     <div>Actions</div>
   </div>
   <div class="grid" id="grid"></div>
@@ -1243,6 +1245,7 @@
           <button class="qty-btn" id="qtyMinus">–</button>
           <div class="qty-display"><b id="qtyValue">0</b> on hand</div>
           <button class="qty-btn" id="qtyPlus">+</button>
+          <div class="focus-sold-stat"><b id="focusSoldCount">0</b> sold</div>
         </div>
 
         <div id="soldControls">
@@ -1916,9 +1919,7 @@ function renderGrid(){
         <div class="col-cost">$<span contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="price">${escapeHtml(it.price)}</span></div>
         <div class="col-retail">$<span contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="retailPrice">${escapeHtml(it.retailPrice || '—')}</span></div>
         <div class="col-onhand">${onHand}</div>
-        <div class="col-sold">${soldCount}</div>
         <div class="col-left ${leftLow ? 'low' : ''}"><span contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" inputmode="numeric" data-id="${it.id}" data-field="qty">${it.qty}</span></div>
-        <div class="status-badge ${statusClass}" ${it.locked ? `data-id="${it.id}" title="Click to restock the last unit sold and correct a mistake"` : ''}>${statusLabel}</div>
         ${selectMode ? '<div></div>' : `
         <div class="card-actions">
           <button class="card-run" data-id="${it.id}" title="Run this item live" aria-label="Run item">
@@ -1943,8 +1944,7 @@ function renderGrid(){
         toggleSelected(id);
         return;
       }
-      if(e.target.closest('[contenteditable]') || e.target.closest('.card-duplicate') || e.target.closest('.card-run') || e.target.closest('.status-badge.sold-out') || e.target.closest('.card-img-clickable')) return;
-      if(card.classList.contains('locked')) return;
+      if(e.target.closest('[contenteditable]') || e.target.closest('.card-duplicate') || e.target.closest('.card-run') || e.target.closest('.card-img-clickable')) return;
       const id = card.getAttribute('data-id');
       const idx = filtered.findIndex(it => it.id === id);
       openFocus(idx);
@@ -2150,6 +2150,7 @@ function renderFocus(){
   document.getElementById('focusSpecs').innerHTML = specParts.join('');
   document.getElementById('focusPrice').textContent = '$' + it.price;
   document.getElementById('qtyValue').textContent = it.qty;
+  document.getElementById('focusSoldCount').textContent = (it.soldEvents && it.soldEvents.length) || 0;
 
   
   if(it.locked){
