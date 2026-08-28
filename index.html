@@ -726,14 +726,20 @@
   .col-cost, .col-retail{
     font-family:var(--mono); font-size:22px; color:var(--cream); font-weight:600;
     text-align:center; white-space:nowrap;
+    display:flex; flex-direction:column; align-items:center; gap:2px;
   }
   .col-retail{color:var(--gold-bright);}
   .col-onhand, .col-sold, .col-left{
     font-family:var(--mono); font-size:22px; color:var(--cream); font-weight:600;
     text-align:center; white-space:nowrap;
+    display:flex; flex-direction:column; align-items:center; gap:2px;
   }
   .col-left{color:var(--good);}
   .col-left.low{color:var(--danger);}
+  .col-label{
+    font-family:var(--mono); font-size:9px; font-weight:700; letter-spacing:0.06em;
+    text-transform:uppercase; color:var(--cream-dim); order:-1;
+  }
   .status-badge{
     font-family:var(--mono); font-size:10.5px; font-weight:700; letter-spacing:0.03em;
     text-align:center; padding:6px 4px; border-radius:999px; text-transform:capitalize;
@@ -772,12 +778,16 @@
   .card-delete:hover{border-color:var(--danger); color:var(--danger); background:rgba(193,84,74,0.08);}
   .card-delete svg{width:16px; height:16px;}
   .card-menu-wrap{position:relative; flex-shrink:0;}
+  .card-menu-corner{
+    position:absolute; top:8px; right:8px; z-index:5;
+  }
   .card-menu-btn{
-    width:38px; height:38px; border-radius:50%;
-    border:1px solid var(--hairline); background:transparent;
-    color:var(--cream-dim); cursor:pointer; font-size:18px; font-weight:700; line-height:1;
+    width:30px; height:30px; border-radius:50%;
+    border:1px solid var(--hairline); background:var(--panel);
+    color:var(--cream-dim); cursor:pointer; font-size:16px; font-weight:700; line-height:1;
     display:flex; align-items:center; justify-content:center;
     transition:all .15s ease;
+    box-shadow:0 2px 8px rgba(43,38,32,0.1);
   }
   .card-menu-btn:hover{border-color:var(--gold); color:var(--gold-bright); background:rgba(184,134,63,0.08);}
   .card-menu-dropdown{
@@ -1983,6 +1993,14 @@ function renderGrid(){
     return `
       <div class="card ${isSold ? 'sold' : ''} ${it.locked ? 'locked' : ''} ${dragReady ? '' : 'drag-disabled'} ${selectMode ? 'select-mode' : ''} ${selectedIds.has(it.id) ? 'selected' : ''}" data-id="${it.id}" ${dragReady && !it.locked && !selectMode ? 'draggable="true"' : ''}>
         ${it.isHero ? '<div class="hero-badge">★ Hero</div>' : ''}
+        ${!selectMode ? `
+        <div class="card-menu-wrap card-menu-corner">
+          <button class="card-menu-btn" data-id="${it.id}" title="More options" aria-label="More options">⋯</button>
+          <div class="card-menu-dropdown" data-id="${it.id}" style="display:none;">
+            <button class="card-menu-duplicate" data-id="${it.id}">⧉ Duplicate</button>
+            <button class="card-menu-delete" data-id="${it.id}">🗑 Delete</button>
+          </div>
+        </div>` : ''}
         ${selectMode
           ? `<div class="card-select"><input type="checkbox" class="select-checkbox" data-id="${it.id}" ${selectedIds.has(it.id) ? 'checked' : ''}></div>`
           : `<div class="card-handle" title="Drag to reorder">
@@ -2003,21 +2021,14 @@ function renderGrid(){
             <span class="spec-tag material" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="material">${escapeHtml(it.material || 'Add material')}</span>
           </div>
         </div>
-        <div class="col-cost">$<span contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="price">${escapeHtml(it.price)}</span></div>
-        <div class="col-retail">$<span contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="retailPrice">${escapeHtml(it.retailPrice || '—')}</span></div>
-        <div class="col-left ${leftLow ? 'low' : ''}"><span contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" inputmode="numeric" data-id="${it.id}" data-field="qty">${it.qty}</span></div>
+        <div class="col-cost"><span class="col-label">Cost</span><span class="col-value">$<span contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="price">${escapeHtml(it.price)}</span></span></div>
+        <div class="col-retail"><span class="col-label">Retail</span><span class="col-value">$<span contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="retailPrice">${escapeHtml(it.retailPrice || '—')}</span></span></div>
+        <div class="col-left ${leftLow ? 'low' : ''}"><span class="col-label">Stock</span><span class="col-value" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" inputmode="numeric" data-id="${it.id}" data-field="qty">${it.qty}</span></div>
         ${selectMode ? '<div></div>' : `
         <div class="card-actions">
           <button class="card-run" data-id="${it.id}" title="Run this item live" aria-label="Run item">
             <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
           </button>
-          <div class="card-menu-wrap">
-            <button class="card-menu-btn" data-id="${it.id}" title="More options" aria-label="More options">⋯</button>
-            <div class="card-menu-dropdown" data-id="${it.id}" style="display:none;">
-              <button class="card-menu-duplicate" data-id="${it.id}">⧉ Duplicate</button>
-              <button class="card-menu-delete" data-id="${it.id}">🗑 Delete</button>
-            </div>
-          </div>
         </div>`}
       </div>
     `;
