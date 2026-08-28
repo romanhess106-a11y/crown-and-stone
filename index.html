@@ -510,9 +510,7 @@
   }
   .card.locked{opacity:0.55;}
   .card.locked [contenteditable]{pointer-events:none; cursor:default;}
-  .card.locked .card-run,
-  .card.locked .card-duplicate,
-  .card.locked .card-delete{opacity:0.3; pointer-events:none;}
+  .card.locked .card-run{opacity:0.3; pointer-events:none;}
 
   .focus-live-badge{
     display:inline-flex; align-items:center; gap:8px;
@@ -773,15 +771,30 @@
   }
   .card-delete:hover{border-color:var(--danger); color:var(--danger); background:rgba(193,84,74,0.08);}
   .card-delete svg{width:16px; height:16px;}
-  .card-duplicate{
+  .card-menu-wrap{position:relative; flex-shrink:0;}
+  .card-menu-btn{
     width:38px; height:38px; border-radius:50%;
     border:1px solid var(--hairline); background:transparent;
-    color:var(--cream-dim); cursor:pointer;
+    color:var(--cream-dim); cursor:pointer; font-size:18px; font-weight:700; line-height:1;
     display:flex; align-items:center; justify-content:center;
-    transition:all .15s ease; flex-shrink:0;
+    transition:all .15s ease;
   }
-  .card-duplicate:hover{border-color:var(--gold); color:var(--gold-bright); background:rgba(184,134,63,0.08);}
-  .card-duplicate svg{width:16px; height:16px;}
+  .card-menu-btn:hover{border-color:var(--gold); color:var(--gold-bright); background:rgba(184,134,63,0.08);}
+  .card-menu-dropdown{
+    position:absolute; top:calc(100% + 6px); right:0; z-index:60;
+    background:var(--panel); border:1px solid var(--hairline); border-radius:12px;
+    box-shadow:0 16px 40px rgba(43,38,32,0.2);
+    min-width:150px; overflow:hidden;
+  }
+  .card-menu-dropdown button{
+    display:block; width:100%; text-align:left;
+    background:none; border:none; color:var(--cream);
+    font-family:var(--mono); font-size:12.5px; padding:12px 14px; cursor:pointer;
+    transition:background .12s ease;
+  }
+  .card-menu-dropdown button:hover{background:var(--panel-2);}
+  .card-menu-duplicate:hover{color:var(--gold-bright);}
+  .card-menu-delete:hover{color:var(--danger);}
 
   .undo-toast{
     position:fixed; bottom:26px; left:50%; transform:translate(-50%, 20px);
@@ -1998,12 +2011,13 @@ function renderGrid(){
           <button class="card-run" data-id="${it.id}" title="Run this item live" aria-label="Run item">
             <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"></polygon></svg>
           </button>
-          <button class="card-duplicate" data-id="${it.id}" title="Duplicate item" aria-label="Duplicate item">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="9" y="9" width="12" height="12" rx="2"></rect>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-            </svg>
-          </button>
+          <div class="card-menu-wrap">
+            <button class="card-menu-btn" data-id="${it.id}" title="More options" aria-label="More options">⋯</button>
+            <div class="card-menu-dropdown" data-id="${it.id}" style="display:none;">
+              <button class="card-menu-duplicate" data-id="${it.id}">⧉ Duplicate</button>
+              <button class="card-menu-delete" data-id="${it.id}">🗑 Delete</button>
+            </div>
+          </div>
         </div>`}
       </div>
     `;
@@ -2017,7 +2031,7 @@ function renderGrid(){
         toggleSelected(id);
         return;
       }
-      if(e.target.closest('[contenteditable]') || e.target.closest('.card-duplicate') || e.target.closest('.card-run') || e.target.closest('.card-img-clickable')) return;
+      if(e.target.closest('[contenteditable]') || e.target.closest('.card-menu-wrap') || e.target.closest('.card-run') || e.target.closest('.card-img-clickable')) return;
       const id = card.getAttribute('data-id');
       const idx = filtered.findIndex(it => it.id === id);
       openFocus(idx);
@@ -2032,11 +2046,32 @@ function renderGrid(){
     el.addEventListener('blur', () => commitEdit(el));
   });
 
-  grid.querySelectorAll('.card-duplicate').forEach(btn => {
+  grid.querySelectorAll('.card-menu-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const id = btn.getAttribute('data-id');
+      const dropdown = grid.querySelector(`.card-menu-dropdown[data-id="${id}"]`);
+      const isOpen = dropdown.style.display !== 'none';
+      grid.querySelectorAll('.card-menu-dropdown').forEach(d => d.style.display = 'none');
+      dropdown.style.display = isOpen ? 'none' : 'block';
+    });
+  });
+
+  grid.querySelectorAll('.card-menu-duplicate').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      grid.querySelectorAll('.card-menu-dropdown').forEach(d => d.style.display = 'none');
+      const id = btn.getAttribute('data-id');
       duplicateItem(id);
+    });
+  });
+
+  grid.querySelectorAll('.card-menu-delete').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      grid.querySelectorAll('.card-menu-dropdown').forEach(d => d.style.display = 'none');
+      const id = btn.getAttribute('data-id');
+      deleteItem(id);
     });
   });
 
@@ -2374,6 +2409,9 @@ document.addEventListener('click', (e) => {
   const menu = document.getElementById('overflowMenu');
   if(menu.style.display !== 'none' && !e.target.closest('.overflow-wrap')){
     menu.style.display = 'none';
+  }
+  if(!e.target.closest('.card-menu-wrap')){
+    document.querySelectorAll('.card-menu-dropdown').forEach(d => d.style.display = 'none');
   }
 });
 
