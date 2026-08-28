@@ -72,6 +72,21 @@
   .back-link:hover{border-color:var(--gold); color:var(--gold-bright);}
 
   .content{max-width:900px; margin:0 auto; padding:30px 28px 80px;}
+
+  .session-picker{
+    display:flex; align-items:center; gap:10px; margin-bottom:22px; flex-wrap:wrap;
+  }
+  .session-picker label{
+    font-family:var(--mono); font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:var(--cream-dim);
+  }
+  .session-picker select{
+    flex:1; min-width:220px;
+    font-family:var(--mono); font-size:13.5px; color:var(--cream);
+    background:var(--panel); border:1px solid var(--hairline); border-radius:10px;
+    padding:11px 14px; outline:none; cursor:pointer;
+  }
+  .session-picker select:focus{border-color:var(--gold);}
+
   .summary-row{
     display:flex; gap:16px; margin-bottom:26px; flex-wrap:wrap;
   }
@@ -123,6 +138,11 @@
   </div>
 
   <div class="content">
+    <div class="session-picker">
+      <label for="sessionSelect">Viewing:</label>
+      <select id="sessionSelect"></select>
+    </div>
+
     <div class="summary-row">
       <div class="summary-card">
         <div class="summary-label">Items Sold</div>
@@ -164,21 +184,65 @@ function escapeHtml(str){
 function loadState(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
-    if(!raw) return { sessionLog: [], liveLotCounter: 0 };
+    if(!raw) return { sessionLog: [], liveLotCounter: 0, sessionArchive: [] };
     const parsed = JSON.parse(raw);
-    return { sessionLog: parsed.sessionLog || [], liveLotCounter: parsed.liveLotCounter || 0 };
-  }catch(e){ return { sessionLog: [], liveLotCounter: 0 }; }
+    return {
+      sessionLog: parsed.sessionLog || [],
+      liveLotCounter: parsed.liveLotCounter || 0,
+      sessionArchive: parsed.sessionArchive || []
+    };
+  }catch(e){ return { sessionLog: [], liveLotCounter: 0, sessionArchive: [] }; }
+}
+
+function formatDate(iso){
+  try{
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { month:'short', day:'numeric' }) + ' at ' +
+      d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+  }catch(e){ return iso; }
+}
+
+let selectedSessionValue = 'current';
+
+function populateSessionPicker(state){
+  const select = document.getElementById('sessionSelect');
+  const prevValue = select.value || selectedSessionValue;
+  const options = [];
+  options.push(`<option value="current">Current / Live Session (${state.sessionLog.length} sold)</option>`);
+  state.sessionArchive.forEach((s, i) => {
+    options.push(`<option value="archive-${i}">${formatDate(s.endedAt)} — ${s.count} sold, $${s.total.toFixed(2)}</option>`);
+  });
+  select.innerHTML = options.join('');
+  // preserve selection across refreshes if still valid
+  const validValues = ['current', ...state.sessionArchive.map((_,i) => `archive-${i}`)];
+  select.value = validValues.includes(prevValue) ? prevValue : 'current';
+  selectedSessionValue = select.value;
 }
 
 function render(){
   const state = loadState();
-  const log = state.sessionLog || [];
+  populateSessionPicker(state);
+
+  let log, nextLot;
+  if(selectedSessionValue === 'current'){
+    log = state.sessionLog || [];
+    nextLot = (state.liveLotCounter || 0) + 1;
+    document.getElementById('liveStatus').style.display = 'flex';
+  } else {
+    const idx = parseInt(selectedSessionValue.replace('archive-',''), 10);
+    const archived = state.sessionArchive[idx];
+    log = archived ? archived.log : [];
+    nextLot = null;
+    document.getElementById('liveStatus').style.display = 'none';
+  }
+
   const sorted = [...log].sort((a,b) => a.lot - b.lot);
 
   document.getElementById('summaryCount').textContent = log.length;
   const total = log.reduce((sum, s) => sum + parseFloat(s.price || 0), 0);
   document.getElementById('summaryTotal').textContent = '$' + total.toFixed(2);
-  document.getElementById('summaryNextLot').textContent = (state.liveLotCounter || 0) + 1;
+  document.getElementById('summaryNextLot').textContent = nextLot !== null ? nextLot : '—';
+  document.querySelector('.summary-card:nth-child(3) .summary-label').textContent = nextLot !== null ? 'Next Lot #' : 'Session Ended';
 
   const table = document.getElementById('salesTable');
   const empty = document.getElementById('emptyState');
@@ -187,6 +251,9 @@ function render(){
   if(sorted.length === 0){
     table.style.display = 'none';
     empty.style.display = 'block';
+    empty.textContent = selectedSessionValue === 'current'
+      ? 'No sales recorded yet. This page updates automatically the moment a sale is confirmed on the show board.'
+      : 'No sales were recorded in this session.';
     return;
   }
   table.style.display = 'table';
@@ -203,12 +270,21 @@ function render(){
   `).join('');
 }
 
+document.addEventListener('DOMContentLoaded', () => {
+  const select = document.getElementById('sessionSelect');
+  if(select){
+    select.addEventListener('change', () => {
+      selectedSessionValue = select.value;
+      render();
+    });
+  }
+});
+
 // live cross-tab updates: fires in THIS tab whenever another tab (the show
 // board) writes to localStorage.
 window.addEventListener('storage', (e) => {
   if(e.key === STORAGE_KEY){
     render();
-    document.getElementById('liveStatus').style.display = 'flex';
   }
 });
 
