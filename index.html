@@ -301,6 +301,48 @@
   }
   .confirm-modal-cancel:hover{border-color:var(--danger); color:var(--danger);}
 
+  .session-end-overlay{
+    position:fixed; inset:0; z-index:400;
+    background:rgba(43,38,32,0.45);
+    display:flex; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  .session-end-modal{
+    background:var(--panel); border-radius:20px; padding:34px 32px 28px;
+    max-width:380px; width:100%; text-align:center;
+    box-shadow:0 40px 100px rgba(43,38,32,0.22);
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+  }
+  .session-end-label{
+    font-family:var(--mono); font-weight:700; font-size:11px; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--gold-bright); margin-bottom:14px;
+  }
+  .session-end-stats{
+    display:flex; align-items:center; gap:22px; margin-bottom:16px;
+  }
+  .session-end-stat{display:flex; flex-direction:column; align-items:center; gap:4px;}
+  .session-end-value{
+    font-family:var(--serif); font-weight:600; font-size:34px; color:var(--cream);
+  }
+  .session-end-caption{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase;
+    color:var(--cream-dim);
+  }
+  .session-end-divider{width:1px; height:44px; background:var(--hairline);}
+  .session-end-note{
+    font-family:var(--sans); font-size:13px; color:var(--cream-dim); line-height:1.5;
+    margin-bottom:22px;
+  }
+  .session-end-ok{
+    background:var(--gold); color:#fdf9f0; border:none;
+    font-family:var(--mono); font-weight:700; font-size:14px; letter-spacing:0.04em;
+    padding:14px 44px; border-radius:999px; cursor:pointer;
+    box-shadow:0 10px 24px rgba(184,134,63,0.32);
+    transition:all .12s ease;
+  }
+  .session-end-ok:hover{filter:brightness(1.08); transform:translateY(-1px);}
+
+
 
   .sales-sheet-overlay{
     position:fixed; inset:0; z-index:300;
@@ -966,6 +1008,25 @@
   </div>
 </div>
 
+<div class="session-end-overlay" id="sessionEndOverlay" style="display:none;">
+  <div class="session-end-modal">
+    <div class="session-end-label">Live Session Ended</div>
+    <div class="session-end-stats">
+      <div class="session-end-stat">
+        <div class="session-end-value" id="sessionEndCount">0</div>
+        <div class="session-end-caption">Items Sold</div>
+      </div>
+      <div class="session-end-divider"></div>
+      <div class="session-end-stat">
+        <div class="session-end-value" id="sessionEndTotal">$0.00</div>
+        <div class="session-end-caption">Total Sales</div>
+      </div>
+    </div>
+    <div class="session-end-note" id="sessionEndNote">Saved to your archive — view full details in the Sales Sheet anytime.</div>
+    <button class="session-end-ok" id="sessionEndOk">OK</button>
+  </div>
+</div>
+
 <div class="sales-sheet-overlay" id="salesSheetOverlay" style="display:none;">
   <div class="sales-sheet-panel">
     <div class="sales-sheet-header">
@@ -1253,6 +1314,15 @@ function updateLiveBanner(){
     : `LIVE — Next sale will be Lot #${nextLot}. Tap ▶ on a piece to run it.`;
 }
 
+function showSessionEndedModal(count, total){
+  document.getElementById('sessionEndCount').textContent = count;
+  document.getElementById('sessionEndTotal').textContent = '$' + total.toFixed(2);
+  document.getElementById('sessionEndNote').textContent = count > 0
+    ? 'Saved to your archive — view full details in the Sales Sheet anytime.'
+    : 'No items were marked sold this session.';
+  document.getElementById('sessionEndOverlay').style.display = 'flex';
+}
+
 async function setLiveActive(active){
   liveModeActive = active;
   const startBtn = document.getElementById('startLiveBtn');
@@ -1274,7 +1344,6 @@ async function setLiveActive(active){
     const log = state.sessionLog || [];
     if(log.length > 0){
       const total = log.reduce((sum, s) => sum + parseFloat(s.price || 0), 0);
-      const lines = log.map(s => `Lot ${s.lot} (No. ${String(s.num).padStart(2,'0')}): ${s.name} — $${s.price}`).join('\n');
       state.sessionArchive = state.sessionArchive || [];
       state.sessionArchive.unshift({
         startedAt: state.sessionStartedAt || null,
@@ -1286,9 +1355,9 @@ async function setLiveActive(active){
       // keep the archive from growing without bound
       if(state.sessionArchive.length > 30) state.sessionArchive = state.sessionArchive.slice(0, 30);
       await saveState();
-      window.alert(`Live session ended.\n\n${log.length} item(s) sold, $${total.toFixed(2)} total:\n\n${lines}\n\nThis session has been saved to the archive — view it anytime from the Sales Sheet panel.`);
+      showSessionEndedModal(log.length, total);
     } else {
-      window.alert('Live session ended. No items were marked sold this session.');
+      showSessionEndedModal(0, 0);
     }
   }
   updateLiveBanner();
@@ -2097,6 +2166,13 @@ document.getElementById('confirmModalCancel').addEventListener('click', (e) => {
 });
 document.getElementById('confirmModalOverlay').addEventListener('click', (e) => {
   if(e.target.id === 'confirmModalOverlay') closeConfirmModal();
+});
+
+document.getElementById('sessionEndOk').addEventListener('click', () => {
+  document.getElementById('sessionEndOverlay').style.display = 'none';
+});
+document.getElementById('sessionEndOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'sessionEndOverlay') document.getElementById('sessionEndOverlay').style.display = 'none';
 });
 
 document.getElementById('unlockLink').addEventListener('click', async (e) => {
