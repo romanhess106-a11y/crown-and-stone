@@ -218,12 +218,14 @@
   .confirm-no-btn{background:transparent; border:1.5px solid var(--hairline); color:var(--cream-dim);}
   .confirm-no-btn:hover{border-color:var(--danger); color:var(--danger);}
   .locked-notice{
-    font-family:var(--mono); font-size:12.5px; color:var(--sold); letter-spacing:0.04em;
-    display:flex; align-items:center; gap:10px;
+    font-family:var(--mono); font-weight:700; font-size:14px; color:#8a6d3a; letter-spacing:0.03em;
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    background:rgba(184,134,63,0.12); border:1px solid rgba(184,134,63,0.35);
+    padding:14px 18px; border-radius:12px; margin-top:16px;
   }
   .unlock-link{
-    background:none; border:none; color:var(--cream-dim); text-decoration:underline;
-    font-family:var(--mono); font-size:11px; cursor:pointer; padding:0;
+    background:none; border:none; color:var(--danger); text-decoration:underline;
+    font-family:var(--mono); font-weight:700; font-size:12px; cursor:pointer; padding:0;
   }
 
   .filterbar{
@@ -504,14 +506,16 @@
   }
   .qty-display b{font-size:26px; color:var(--gold-bright);}
   .mark-sold-btn{
-    margin-top:8px; align-self:flex-start;
-    background:transparent; border:1px solid var(--hairline); color:var(--cream-dim);
-    font-family:var(--mono); font-size:12px; letter-spacing:0.08em; text-transform:uppercase;
-    padding:10px 20px; border-radius:999px; cursor:pointer;
-    transition:all .15s ease;
+    margin-top:16px;
+    background:var(--good); color:#ffffff; border:none;
+    font-family:var(--mono); font-weight:800; font-size:16px; letter-spacing:0.06em; text-transform:uppercase;
+    padding:20px 28px; border-radius:14px; cursor:pointer;
+    width:100%; max-width:440px;
+    box-shadow:0 12px 28px rgba(95,138,83,0.4);
+    transition:all .12s ease;
   }
-  .mark-sold-btn:hover{border-color:var(--danger); color:var(--danger);}
-  .mark-sold-btn.is-sold{border-color:var(--good); color:var(--good);}
+  .mark-sold-btn:hover{filter:brightness(1.08); transform:translateY(-2px); box-shadow:0 16px 34px rgba(95,138,83,0.5);}
+  .mark-sold-btn:active{transform:translateY(0px) scale(0.98);}
 
   .next-piece-btn{
     margin-top:14px; align-self:flex-start;
