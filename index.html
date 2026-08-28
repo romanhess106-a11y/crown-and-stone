@@ -269,7 +269,7 @@
   }
   .sales-sheet-lot{font-weight:700; color:var(--gold-bright);}
   .sales-sheet-num{color:var(--cream-dim);}
-  .sales-sheet-name{max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .sales-sheet-name{line-height:1.4;}
   .sales-sheet-empty{
     padding:40px 0; text-align:center; color:var(--cream-dim);
     font-family:var(--serif); font-style:italic; font-size:15px;
@@ -806,7 +806,7 @@
     <div class="sales-sheet-table-wrap">
       <table class="sales-sheet-table">
         <thead>
-          <tr><th>Lot</th><th>No.</th><th>SKU</th><th>Item</th><th>Price</th></tr>
+          <tr><th>Lot</th><th>No.</th><th>Item</th></tr>
         </thead>
         <tbody id="salesSheetBody"></tbody>
       </table>
@@ -998,9 +998,7 @@ function renderSalesSheet(){
     <tr>
       <td class="sales-sheet-lot">#${s.lot}</td>
       <td class="sales-sheet-num">${String(s.num).padStart(2,'0')}</td>
-      <td>${escapeHtml(s.sku)}</td>
-      <td class="sales-sheet-name" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</td>
-      <td>$${s.price}</td>
+      <td class="sales-sheet-name">${escapeHtml(s.name)}</td>
     </tr>
   `).join('');
 
