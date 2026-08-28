@@ -560,16 +560,17 @@
     overflow:hidden; flex-shrink:0; position:relative;
   }
   .card-img img{width:100%; height:100%; object-fit:cover;}
-  .card-img-upload{
+  .card-img-clickable{cursor:pointer;}
+  .card-img-hint{
     position:absolute; bottom:8px; right:8px;
-    width:34px; height:34px; border-radius:50%;
-    background:rgba(255,255,255,0.92); border:1px solid var(--hairline); color:var(--gold-bright);
-    display:flex; align-items:center; justify-content:center; cursor:pointer;
-    box-shadow:0 4px 12px rgba(43,38,32,0.2);
-    transition:all .15s ease;
+    width:30px; height:30px; border-radius:50%;
+    background:rgba(255,255,255,0.9); border:1px solid var(--hairline); color:var(--gold-bright);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 12px rgba(43,38,32,0.18);
+    opacity:0.85; pointer-events:none; transition:all .15s ease;
   }
-  .card-img-upload svg{width:16px; height:16px;}
-  .card-img-upload:hover{background:var(--gold); color:#fff; transform:scale(1.08);}
+  .card-img-hint svg{width:14px; height:14px;}
+  .card-img-clickable:hover .card-img-hint{opacity:1; background:var(--gold); color:#fff; transform:scale(1.08);}
   .card-body{display:flex; flex-direction:column; gap:6px; min-width:0;}
   .card-sku{
     font-family:var(--mono); font-size:11.5px; color:var(--gold);
@@ -1599,11 +1600,11 @@ function renderGrid(){
               <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="1.6"/><circle cx="16" cy="6" r="1.6"/><circle cx="8" cy="12" r="1.6"/><circle cx="16" cy="12" r="1.6"/><circle cx="8" cy="18" r="1.6"/><circle cx="16" cy="18" r="1.6"/></svg>
             </div>`}
         <div class="card-num" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" inputmode="numeric" data-id="${it.id}" data-field="num" title="Click to move this piece to a new slot number">${String(it.num).padStart(2,'0')}</div>
-        <div class="card-img" data-id="${it.id}">
+        <div class="card-img ${!selectMode ? 'card-img-clickable' : ''}" data-id="${it.id}" title="${!selectMode ? 'Click to upload your own photo' : ''}">
           <img src="${it.image}" alt="" loading="lazy">
-          ${!selectMode ? `<button class="card-img-upload" data-id="${it.id}" title="Upload your own photo" aria-label="Upload photo">
+          ${!selectMode ? `<div class="card-img-hint">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-          </button>` : ''}
+          </div>` : ''}
         </div>
         <div class="card-body">
           <div class="card-sku">${it.sku}</div>
@@ -1640,7 +1641,7 @@ function renderGrid(){
         toggleSelected(id);
         return;
       }
-      if(e.target.closest('[contenteditable]') || e.target.closest('.card-duplicate') || e.target.closest('.card-run') || e.target.closest('.lock-badge') || e.target.closest('.card-img-upload')) return;
+      if(e.target.closest('[contenteditable]') || e.target.closest('.card-duplicate') || e.target.closest('.card-run') || e.target.closest('.lock-badge') || e.target.closest('.card-img-clickable')) return;
       if(card.classList.contains('locked')) return;
       const id = card.getAttribute('data-id');
       const idx = filtered.findIndex(it => it.id === id);
@@ -1672,10 +1673,10 @@ function renderGrid(){
     });
   });
 
-  grid.querySelectorAll('.card-img-upload').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+  grid.querySelectorAll('.card-img-clickable').forEach(el => {
+    el.addEventListener('click', (e) => {
       e.stopPropagation();
-      const id = btn.getAttribute('data-id');
+      const id = el.getAttribute('data-id');
       triggerImageUpload(id);
     });
   });
