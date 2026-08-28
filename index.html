@@ -703,7 +703,7 @@
           <button class="mark-sold-btn" id="markSoldBtn">Confirm Sold</button>
         </div>
         <div id="lockedNotice" class="locked-notice" style="display:none;">
-          🔒 <span id="lockedNoticeText">Sold &amp; locked</span> <button class="unlock-link" id="unlockLink">unlock to correct</button>
+          🔒 <span id="lockedNoticeText">Sold out &amp; locked</span> <button class="unlock-link" id="unlockLink">restock last unit</button>
         </div>
 
         <div class="focus-notes-wrap">
@@ -786,7 +786,7 @@ function initItems(){
         qty: (o.qty !== undefined) ? o.qty : it.qty,
         sold: !!o.sold,
         locked: !!o.locked,
-        lot: (o.lot !== undefined) ? o.lot : null,
+        soldEvents: o.soldEvents || [], // [{lot, qty}] — one entry per confirmed sale during a live session
         name: o.name !== undefined ? o.name : it.name,
         price: o.price !== undefined ? o.price : it.price,
         material: o.material !== undefined ? o.material : it.material,
@@ -869,10 +869,32 @@ function runItem(id){
 }
 
 async function unlockItem(id){
-  state.overlay[id] = { ...(state.overlay[id]||{}), locked: false };
-  await saveState();
   const it = items.find(x => x.id === id);
-  if(it) it.locked = false;
+  if(!it) return;
+  // Reverse the most recent sale event on this item — restocks 1 unit and
+  // un-marks sold/locked if that was the event that emptied the stock.
+  const events = [...(it.soldEvents || [])];
+  const removed = events.pop();
+  const restoredQty = it.qty + (removed ? removed.qty : 0);
+  it.qty = restoredQty;
+  it.soldEvents = events;
+  it.locked = false;
+  it.sold = false;
+  const srcItem = items.find(x => x.id === id);
+  if(srcItem){
+    srcItem.qty = restoredQty;
+    srcItem.soldEvents = events;
+    srcItem.locked = false;
+    srcItem.sold = false;
+  }
+  state.overlay[id] = {
+    ...(state.overlay[id]||{}),
+    qty: restoredQty,
+    soldEvents: events,
+    locked: false,
+    sold: false
+  };
+  await saveState();
   renderGrid();
 }
 
@@ -1028,7 +1050,7 @@ function renderGrid(){
       ${header}
       ${subHeader}
       <div class="card ${isSold ? 'sold' : ''} ${it.locked ? 'locked' : ''} ${dragReady ? '' : 'drag-disabled'}" data-id="${it.id}" ${dragReady && !it.locked ? 'draggable="true"' : ''}>
-        ${it.locked ? '<div class="lock-badge" data-id="'+it.id+'" title="Click to unlock for corrections">🔒 '+(it.lot ? 'Lot '+it.lot : 'Sold')+'</div>' : (isSold ? '<div class="sold-badge">Sold out</div>' : (it.isHero ? '<div class="hero-badge">★ Hero</div>' : ''))}
+        ${it.locked ? '<div class="lock-badge" data-id="'+it.id+'" title="Click to restock the last unit sold and correct a mistake">🔒 Sold Out'+(it.soldEvents && it.soldEvents.length ? ' · '+it.soldEvents.length+' sold' : '')+'</div>' : (isSold ? '<div class="sold-badge">Sold out</div>' : (it.isHero ? '<div class="hero-badge">★ Hero</div>' : ''))}
         <div class="card-handle" title="Drag to reorder">
           <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="1.6"/><circle cx="16" cy="6" r="1.6"/><circle cx="8" cy="12" r="1.6"/><circle cx="16" cy="12" r="1.6"/><circle cx="8" cy="18" r="1.6"/><circle cx="16" cy="18" r="1.6"/></svg>
         </div>
@@ -1043,7 +1065,7 @@ function renderGrid(){
             <span class="spec-tag material" contenteditable="${it.locked ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="material">${escapeHtml(it.material || 'Add material')}</span>
           </div>
         </div>
-        <div class="card-qty ${qtyClass}"><span contenteditable="${it.locked ? 'false' : 'true'}" spellcheck="false" inputmode="numeric" data-id="${it.id}" data-field="qty">${it.qty}</span> on hand</div>
+        <div class="card-qty ${qtyClass}"><span contenteditable="${it.locked ? 'false' : 'true'}" spellcheck="false" inputmode="numeric" data-id="${it.id}" data-field="qty">${it.qty}</span> on hand${(it.soldEvents && it.soldEvents.length && !it.locked) ? ' · '+it.soldEvents.length+' sold' : ''}</div>
         <div class="card-price">$<span contenteditable="${it.locked ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="price">${escapeHtml(it.price)}</span></div>
         <div class="card-actions">
           <button class="card-run" data-id="${it.id}" title="Run this item live" aria-label="Run item">
@@ -1266,7 +1288,9 @@ function renderFocus(){
   if(it.locked){
     document.getElementById('soldControls').style.display = 'none';
     document.getElementById('lockedNotice').style.display = 'flex';
-    document.getElementById('lockedNoticeText').textContent = it.lot ? `Sold as Lot #${it.lot} & locked` : 'Sold & locked';
+    document.getElementById('lockedNoticeText').textContent = it.soldEvents && it.soldEvents.length
+      ? `Sold out — ${it.soldEvents.length} unit${it.soldEvents.length > 1 ? 's' : ''} sold (last: Lot #${it.soldEvents[it.soldEvents.length-1].lot})`
+      : 'Sold out & locked';
   } else {
     document.getElementById('soldControls').style.display = 'block';
     document.getElementById('lockedNotice').style.display = 'none';
@@ -1281,15 +1305,36 @@ function renderFocus(){
 async function confirmItemSold(){
   const it = filtered[focusIndex];
   if(!it) return;
+  if(it.qty <= 0){
+    window.alert('This piece is already out of stock.');
+    return;
+  }
   state.liveLotCounter = (state.liveLotCounter || 0) + 1;
   const lot = state.liveLotCounter;
-  it.sold = true;
-  it.qty = 0;
-  it.locked = true;
-  it.lot = lot;
+
+  const newQty = it.qty - 1;
+  const newSoldEvents = [...it.soldEvents, { lot, qty: 1 }];
+  const outOfStock = newQty <= 0;
+
+  it.qty = newQty;
+  it.soldEvents = newSoldEvents;
+  it.sold = outOfStock;
+  it.locked = outOfStock;
+
   const srcItem = items.find(x => x.id === it.id);
-  if(srcItem){ srcItem.sold = true; srcItem.qty = 0; srcItem.locked = true; srcItem.lot = lot; }
-  state.overlay[it.id] = { ...(state.overlay[it.id]||{}), sold: true, qty: 0, locked: true, lot };
+  if(srcItem){
+    srcItem.qty = newQty;
+    srcItem.soldEvents = newSoldEvents;
+    srcItem.sold = outOfStock;
+    srcItem.locked = outOfStock;
+  }
+  state.overlay[it.id] = {
+    ...(state.overlay[it.id]||{}),
+    qty: newQty,
+    soldEvents: newSoldEvents,
+    sold: outOfStock,
+    locked: outOfStock
+  };
   sessionSoldLog.push({ lot, sku: it.sku, name: it.name, price: it.price });
   await saveState();
   renderFocus();
@@ -1378,7 +1423,11 @@ document.getElementById('markSoldBtn').addEventListener('click', (e) => {
   e.stopPropagation();
   const it = filtered[focusIndex];
   if(!it) return;
-  const ok = window.confirm(`Mark "${it.name}" as SOLD?\n\nThis sets quantity to 0 and locks the piece from further edits.`);
+  const remaining = it.qty - 1;
+  const stockMsg = remaining > 0
+    ? `${remaining} will remain in stock after this sale.`
+    : `This is your last one — it'll be marked sold out and locked after this.`;
+  const ok = window.confirm(`Mark 1 unit of "${it.name}" as SOLD?\n\n${stockMsg}`);
   if(ok){
     confirmItemSold();
   }
