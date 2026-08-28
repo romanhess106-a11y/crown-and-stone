@@ -169,6 +169,53 @@
   }
   .sales-sheet-btn:hover{border-color:var(--gold); color:var(--gold-bright);}
 
+  .confirm-modal-overlay{
+    position:fixed; inset:0; z-index:400;
+    background:rgba(43,38,32,0.55);
+    display:flex; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  .confirm-modal{
+    background:var(--panel); border-radius:20px; overflow:hidden;
+    max-width:420px; width:100%;
+    box-shadow:0 40px 100px rgba(0,0,0,0.35);
+    display:flex; flex-direction:column;
+  }
+  .confirm-modal-img-wrap{
+    width:100%; aspect-ratio:16/9; background:#eee4d3; overflow:hidden;
+  }
+  .confirm-modal-img-wrap img{width:100%; height:100%; object-fit:cover;}
+  .confirm-modal-body{padding:26px 28px 28px; display:flex; flex-direction:column; gap:8px;}
+  .confirm-modal-label{
+    font-family:var(--mono); font-weight:700; font-size:11px; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--gold-bright);
+  }
+  .confirm-modal-name{
+    font-family:var(--serif); font-weight:600; font-size:21px; line-height:1.25; color:var(--cream);
+    margin-bottom:2px;
+  }
+  .confirm-modal-stock{
+    font-family:var(--mono); font-size:13px; color:var(--cream-dim); margin-bottom:14px;
+  }
+  .confirm-modal-actions{display:flex; flex-direction:column; gap:10px;}
+  .confirm-modal-yes{
+    background:var(--good); color:#fff; border:none;
+    font-family:var(--mono); font-weight:800; font-size:15px; letter-spacing:0.05em; text-transform:uppercase;
+    padding:17px; border-radius:12px; cursor:pointer;
+    box-shadow:0 10px 24px rgba(95,138,83,0.35);
+    transition:all .12s ease;
+  }
+  .confirm-modal-yes:hover{filter:brightness(1.08); transform:translateY(-1px);}
+  .confirm-modal-yes:active{transform:translateY(0) scale(0.98);}
+  .confirm-modal-cancel{
+    background:transparent; border:1.5px solid var(--hairline); color:var(--cream-dim);
+    font-family:var(--mono); font-weight:600; font-size:13px; letter-spacing:0.04em;
+    padding:13px; border-radius:12px; cursor:pointer;
+    transition:all .12s ease;
+  }
+  .confirm-modal-cancel:hover{border-color:var(--danger); color:var(--danger);}
+
+
   .sales-sheet-overlay{
     position:fixed; inset:0; z-index:300;
     background:rgba(43,38,32,0.4);
@@ -723,6 +770,21 @@
 <div class="live-banner" id="liveBanner" style="display:none;">
   <span class="live-dot"></span>
   <span id="liveBannerText">LIVE — no item running yet</span>
+</div>
+
+<div class="confirm-modal-overlay" id="confirmModalOverlay" style="display:none;">
+  <div class="confirm-modal">
+    <div class="confirm-modal-img-wrap"><img id="confirmModalImg" src="" alt=""></div>
+    <div class="confirm-modal-body">
+      <div class="confirm-modal-label">Confirm Sale</div>
+      <div class="confirm-modal-name" id="confirmModalName"></div>
+      <div class="confirm-modal-stock" id="confirmModalStock"></div>
+      <div class="confirm-modal-actions">
+        <button class="confirm-modal-yes" id="confirmModalYes">✓ Yes, Mark Sold</button>
+        <button class="confirm-modal-cancel" id="confirmModalCancel">Cancel</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="sales-sheet-overlay" id="salesSheetOverlay" style="display:none;">
@@ -1559,15 +1621,34 @@ document.getElementById('markSoldBtn').addEventListener('click', (e) => {
   e.stopPropagation();
   const it = filtered[focusIndex];
   if(!it) return;
+  openConfirmModal(it);
+});
+
+function openConfirmModal(it){
   const remaining = it.qty - 1;
-  const stockMsg = remaining > 0
+  document.getElementById('confirmModalImg').src = it.image;
+  document.getElementById('confirmModalName').textContent = it.name;
+  document.getElementById('confirmModalStock').textContent = remaining > 0
     ? `${remaining} will remain in stock after this sale.`
     : `This is your last one — it'll be marked sold out and locked after this.`;
-  const ok = window.confirm(`Mark 1 unit of "${it.name}" as SOLD?\n\n${stockMsg}`);
-  if(ok){
-    confirmItemSold();
-  }
+  document.getElementById('confirmModalOverlay').style.display = 'flex';
+}
+function closeConfirmModal(){
+  document.getElementById('confirmModalOverlay').style.display = 'none';
+}
+document.getElementById('confirmModalYes').addEventListener('click', (e) => {
+  e.stopPropagation();
+  closeConfirmModal();
+  confirmItemSold();
 });
+document.getElementById('confirmModalCancel').addEventListener('click', (e) => {
+  e.stopPropagation();
+  closeConfirmModal();
+});
+document.getElementById('confirmModalOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'confirmModalOverlay') closeConfirmModal();
+});
+
 document.getElementById('unlockLink').addEventListener('click', async (e) => {
   e.stopPropagation();
   const it = filtered[focusIndex];
