@@ -408,6 +408,41 @@
     background:var(--panel-2);
   }
 
+  .archive-btn{
+    background:var(--panel-2); color:var(--cream); border:1px solid var(--hairline);
+    font-family:var(--mono); font-weight:600; font-size:12px; letter-spacing:0.04em;
+    padding:9px 16px; border-radius:999px; cursor:pointer; white-space:nowrap;
+    transition:all .15s ease;
+  }
+  .archive-btn:hover{border-color:var(--gold); color:var(--gold-bright);}
+
+  .archive-list-wrap{flex:1; overflow-y:auto; padding:10px 22px 22px;}
+  .archive-session-card{
+    background:var(--panel-2); border:1px solid var(--hairline); border-radius:12px;
+    padding:16px 18px; margin-bottom:10px; cursor:pointer; transition:all .15s ease;
+  }
+  .archive-session-card:hover{border-color:var(--gold);}
+  .archive-session-date{
+    font-family:var(--serif); font-weight:600; font-size:16px; color:var(--cream); margin-bottom:6px;
+  }
+  .archive-session-meta{
+    font-family:var(--mono); font-size:12.5px; color:var(--cream-dim); display:flex; gap:14px;
+  }
+  .archive-session-meta span.archive-total{color:var(--gold-bright); font-weight:700;}
+
+  .archive-detail-wrap{flex:1; display:flex; flex-direction:column; overflow:hidden;}
+  .archive-back-btn{
+    background:none; border:none; color:var(--gold-bright); cursor:pointer;
+    font-family:var(--mono); font-size:12.5px; font-weight:600; letter-spacing:0.03em;
+    padding:14px 22px 4px; text-align:left; align-self:flex-start;
+  }
+  .archive-back-btn:hover{text-decoration:underline;}
+  .archive-detail-title{
+    font-family:var(--serif); font-weight:600; font-size:18px; color:var(--cream);
+    padding:6px 22px 12px;
+  }
+  .archive-detail-table-wrap{flex:1; overflow-y:auto;}
+
 
   .live-banner{
     display:flex; align-items:center; gap:10px;
@@ -978,6 +1013,7 @@
   </div>
   <button class="export-btn" id="exportBtn" title="Download your current list as a file to send back to Claude">⬇ Export</button>
   <button class="sales-sheet-btn" id="salesSheetBtn" style="display:none;">📋 Sales Sheet</button>
+  <button class="archive-btn" id="archiveBtn">🗂 Past Streams</button>
 </div>
 
 <div class="bulk-bar" id="bulkBar" style="display:none;">
@@ -1047,6 +1083,35 @@
     </div>
     <div class="sales-sheet-footer">
       <span id="salesSheetTotal">0 sold · $0.00 total</span>
+    </div>
+  </div>
+</div>
+
+<div class="sales-sheet-overlay" id="archiveOverlay" style="display:none;">
+  <div class="sales-sheet-panel">
+    <div class="sales-sheet-header">
+      <h2 id="archiveTitle">Past Streams</h2>
+      <div class="sales-sheet-header-actions">
+        <a class="sales-sheet-tab-link" href="sales-sheet.html" target="_blank" rel="noopener">↗ Open in Tab</a>
+        <button class="sales-sheet-close" id="archiveClose">✕</button>
+      </div>
+    </div>
+
+    <div class="archive-list-wrap" id="archiveListWrap">
+      <div id="archiveListBody"></div>
+      <div class="sales-sheet-empty" id="archiveEmpty">No past streams yet — end a live session to start building your archive.</div>
+    </div>
+
+    <div class="archive-detail-wrap" id="archiveDetailWrap" style="display:none;">
+      <button class="archive-back-btn" id="archiveBackBtn">‹ All Streams</button>
+      <div class="archive-detail-title" id="archiveDetailTitle"></div>
+      <div class="sales-sheet-table-wrap archive-detail-table-wrap">
+        <table class="sales-sheet-table">
+          <thead><tr><th>Lot</th><th>No.</th><th>Item</th></tr></thead>
+          <tbody id="archiveDetailBody"></tbody>
+        </table>
+      </div>
+      <div class="sales-sheet-footer" id="archiveDetailFooter"></div>
     </div>
   </div>
 </div>
@@ -1263,6 +1328,75 @@ function formatSessionDate(iso){
     return d.toLocaleDateString(undefined, { month:'short', day:'numeric' }) + ' at ' +
       d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
   }catch(e){ return null; }
+}
+
+function renderArchiveList(){
+  const listBody = document.getElementById('archiveListBody');
+  const empty = document.getElementById('archiveEmpty');
+  const archive = state.sessionArchive || [];
+
+  if(archive.length === 0){
+    listBody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  listBody.innerHTML = archive.map((sess, i) => {
+    const dateLabel = formatSessionDate(sess.startedAt) || formatSessionDate(sess.endedAt) || 'Unknown date';
+    return `
+      <div class="archive-session-card" data-idx="${i}">
+        <div class="archive-session-date">${escapeHtml(dateLabel)}</div>
+        <div class="archive-session-meta">
+          <span>${sess.count} sold</span>
+          <span class="archive-total">$${sess.total.toFixed(2)}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  listBody.querySelectorAll('.archive-session-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const idx = parseInt(card.getAttribute('data-idx'), 10);
+      openArchiveDetail(idx);
+    });
+  });
+}
+
+function openArchiveDetail(idx){
+  const sess = (state.sessionArchive || [])[idx];
+  if(!sess) return;
+
+  document.getElementById('archiveListWrap').style.display = 'none';
+  document.getElementById('archiveDetailWrap').style.display = 'flex';
+
+  const dateLabel = formatSessionDate(sess.startedAt) || formatSessionDate(sess.endedAt) || 'Past stream';
+  document.getElementById('archiveDetailTitle').textContent = dateLabel;
+
+  const sorted = [...(sess.log || [])].sort((a,b) => a.lot - b.lot);
+  document.getElementById('archiveDetailBody').innerHTML = sorted.map(s => `
+    <tr>
+      <td class="sales-sheet-lot">#${s.lot}</td>
+      <td class="sales-sheet-num">${String(s.num).padStart(2,'0')}</td>
+      <td class="sales-sheet-name">${escapeHtml(s.name)}</td>
+    </tr>
+  `).join('');
+
+  document.getElementById('archiveDetailFooter').textContent = `${sess.count} sold · $${sess.total.toFixed(2)} total`;
+}
+
+function closeArchiveDetail(){
+  document.getElementById('archiveDetailWrap').style.display = 'none';
+  document.getElementById('archiveListWrap').style.display = 'block';
+}
+
+function openArchiveOverlay(){
+  renderArchiveList();
+  closeArchiveDetail();
+  document.getElementById('archiveOverlay').style.display = 'flex';
+}
+function closeArchiveOverlay(){
+  document.getElementById('archiveOverlay').style.display = 'none';
 }
 
 function renderSalesSheet(){
@@ -2221,6 +2355,15 @@ document.getElementById('salesSheetOverlay').addEventListener('click', (e) => {
     document.getElementById('salesSheetOverlay').style.display = 'none';
   }
 });
+
+document.getElementById('archiveBtn').addEventListener('click', () => {
+  openArchiveOverlay();
+});
+document.getElementById('archiveClose').addEventListener('click', closeArchiveOverlay);
+document.getElementById('archiveOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'archiveOverlay') closeArchiveOverlay();
+});
+document.getElementById('archiveBackBtn').addEventListener('click', closeArchiveDetail);
 
 document.getElementById('exportBtn').addEventListener('click', () => {
   // Export the current live list (post-deletions, post-edits, post-reorder)
