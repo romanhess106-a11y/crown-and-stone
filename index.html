@@ -557,9 +557,19 @@
   .card-img{
     width:210px; height:210px; border-radius:12px; background:#eee4d3;
     display:flex; align-items:center; justify-content:center;
-    overflow:hidden; flex-shrink:0;
+    overflow:hidden; flex-shrink:0; position:relative;
   }
   .card-img img{width:100%; height:100%; object-fit:cover;}
+  .card-img-upload{
+    position:absolute; bottom:8px; right:8px;
+    width:34px; height:34px; border-radius:50%;
+    background:rgba(255,255,255,0.92); border:1px solid var(--hairline); color:var(--gold-bright);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    box-shadow:0 4px 12px rgba(43,38,32,0.2);
+    transition:all .15s ease;
+  }
+  .card-img-upload svg{width:16px; height:16px;}
+  .card-img-upload:hover{background:var(--gold); color:#fff; transform:scale(1.08);}
   .card-body{display:flex; flex-direction:column; gap:6px; min-width:0;}
   .card-sku{
     font-family:var(--mono); font-size:11.5px; color:var(--gold);
@@ -802,9 +812,21 @@
     box-shadow:0 30px 80px rgba(43,38,32,0.18);
     cursor:pointer;
     transition:transform .1s ease;
+    position:relative;
   }
   .focus-img:active{transform:scale(0.98);}
   .focus-img img{width:100%; height:100%; object-fit:cover; pointer-events:none;}
+  .focus-img-upload{
+    position:absolute; bottom:14px; right:14px;
+    background:rgba(255,255,255,0.94); border:1px solid var(--hairline); color:var(--gold-bright);
+    font-family:var(--mono); font-weight:600; font-size:12px; letter-spacing:0.02em;
+    padding:9px 14px; border-radius:999px; cursor:pointer;
+    display:flex; align-items:center; gap:6px;
+    box-shadow:0 6px 16px rgba(43,38,32,0.2);
+    transition:all .15s ease;
+  }
+  .focus-img-upload svg{width:14px; height:14px;}
+  .focus-img-upload:hover{background:var(--gold); color:#fff;}
 
   @media (max-width:900px){
     .focus-stage{grid-template-columns:1fr; gap:22px; overflow-y:auto;}
@@ -856,6 +878,8 @@
 </style>
 </head>
 <body>
+
+<input type="file" id="imageUploadInput" accept="image/*" style="display:none;">
 
 <div class="lock-screen" id="lockScreen">
   <div class="lock-card">
@@ -1008,7 +1032,13 @@
   <div class="focus-body">
     <div class="focus-nav prev" id="navPrev">‹</div>
     <div class="focus-stage">
-      <div class="focus-img"><img id="focusImg" src="" alt=""></div>
+      <div class="focus-img">
+        <img id="focusImg" src="" alt="">
+        <button class="focus-img-upload" id="focusImgUpload" title="Upload your own photo" aria-label="Upload photo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+          Change Photo
+        </button>
+      </div>
       <div class="focus-info">
         <div id="focusRunningBadge" class="focus-live-badge" style="display:none;">🔴 Running Now</div>
         <div id="focusHeroBadge" class="focus-hero-badge" style="display:none;">★ Hero Piece</div>
@@ -1117,6 +1147,7 @@ function initItems(){
         material: o.material !== undefined ? o.material : it.material,
         length: o.length !== undefined ? o.length : it.length,
         width: o.width !== undefined ? o.width : it.width,
+        image: o.image !== undefined ? o.image : it.image,
         note: o.note || ''
       };
     });
@@ -1316,6 +1347,72 @@ async function unlockItem(id){
   renderSalesSheet();
 }
 
+let pendingUploadId = null;
+
+function triggerImageUpload(id){
+  pendingUploadId = id;
+  document.getElementById('imageUploadInput').click();
+}
+
+function processUploadedFile(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 640;
+        let w = img.width, h = img.height;
+        if(w > h && w > maxDim){ h = Math.round(h * (maxDim / w)); w = maxDim; }
+        else if(h > maxDim){ w = Math.round(w * (maxDim / h)); h = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.88));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function applyUploadedImage(id, dataUrl){
+  const it = items.find(x => x.id === id);
+  if(!it) return;
+  it.image = dataUrl;
+  state.overlay[id] = { ...(state.overlay[id]||{}), image: dataUrl };
+  await saveState();
+  renderGrid();
+  // if Focus mode is currently showing this item, refresh its photo too
+  const focusItem = filtered[focusIndex];
+  if(focusItem && focusItem.id === id){
+    focusItem.image = dataUrl;
+    document.getElementById('focusImg').src = dataUrl;
+  }
+}
+
+document.getElementById('imageUploadInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = ''; // allow re-selecting the same file later
+  if(!file || !pendingUploadId) return;
+  try{
+    const dataUrl = await processUploadedFile(file);
+    await applyUploadedImage(pendingUploadId, dataUrl);
+  }catch(err){
+    window.alert('Could not load that image — try a different file.');
+  }
+  pendingUploadId = null;
+});
+
+document.getElementById('focusImgUpload').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const it = filtered[focusIndex];
+  if(!it) return;
+  triggerImageUpload(it.id);
+});
+
 async function duplicateItem(id){
   const it = items.find(x => x.id === id);
   if(!it) return;
@@ -1502,7 +1599,12 @@ function renderGrid(){
               <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="8" cy="6" r="1.6"/><circle cx="16" cy="6" r="1.6"/><circle cx="8" cy="12" r="1.6"/><circle cx="16" cy="12" r="1.6"/><circle cx="8" cy="18" r="1.6"/><circle cx="16" cy="18" r="1.6"/></svg>
             </div>`}
         <div class="card-num" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" inputmode="numeric" data-id="${it.id}" data-field="num" title="Click to move this piece to a new slot number">${String(it.num).padStart(2,'0')}</div>
-        <div class="card-img"><img src="${it.image}" alt="" loading="lazy"></div>
+        <div class="card-img" data-id="${it.id}">
+          <img src="${it.image}" alt="" loading="lazy">
+          ${!selectMode ? `<button class="card-img-upload" data-id="${it.id}" title="Upload your own photo" aria-label="Upload photo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+          </button>` : ''}
+        </div>
         <div class="card-body">
           <div class="card-sku">${it.sku}</div>
           <div class="card-name" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="name">${escapeHtml(it.name)}</div>
@@ -1538,7 +1640,7 @@ function renderGrid(){
         toggleSelected(id);
         return;
       }
-      if(e.target.closest('[contenteditable]') || e.target.closest('.card-duplicate') || e.target.closest('.card-run') || e.target.closest('.lock-badge')) return;
+      if(e.target.closest('[contenteditable]') || e.target.closest('.card-duplicate') || e.target.closest('.card-run') || e.target.closest('.lock-badge') || e.target.closest('.card-img-upload')) return;
       if(card.classList.contains('locked')) return;
       const id = card.getAttribute('data-id');
       const idx = filtered.findIndex(it => it.id === id);
@@ -1567,6 +1669,14 @@ function renderGrid(){
       e.stopPropagation();
       const id = btn.getAttribute('data-id');
       runItem(id);
+    });
+  });
+
+  grid.querySelectorAll('.card-img-upload').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.getAttribute('data-id');
+      triggerImageUpload(id);
     });
   });
 
