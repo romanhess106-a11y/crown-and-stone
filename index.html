@@ -799,7 +799,7 @@
     <div class="sales-sheet-header">
       <h2>Sales Sheet — This Session</h2>
       <div class="sales-sheet-header-actions">
-        <a class="sales-sheet-tab-link" id="salesSheetTabLink" href="sales-sheet.html" target="_blank" rel="noopener">↗ Open in Tab</a>
+        <a class="sales-sheet-tab-link" id="salesSheetTabLink" href="sales-sheet.html" target="_blank" rel="noopener">↗ Open in Tab / Archive</a>
         <button class="sales-sheet-close" id="salesSheetClose">✕</button>
       </div>
     </div>
@@ -908,7 +908,7 @@ const storageAdapter = {
 };
 
 const STORAGE_KEY = 'crown-stone-show-state-v2';
-let state = { overlay: {}, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [] };
+let state = { overlay: {}, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [] };
 let items = [];
 let filtered = [];
 let currentFilter = 'all';
@@ -922,13 +922,13 @@ async function loadState(){
     if(res && res.value){
       const parsed = JSON.parse(res.value);
       if(parsed && parsed.overlay){
-        state = { overlay: parsed.overlay || {}, order: parsed.order || null, duplicates: parsed.duplicates || {}, liveLotCounter: parsed.liveLotCounter || 0, sessionLog: parsed.sessionLog || [] };
+        state = { overlay: parsed.overlay || {}, order: parsed.order || null, duplicates: parsed.duplicates || {}, liveLotCounter: parsed.liveLotCounter || 0, sessionLog: parsed.sessionLog || [], sessionArchive: parsed.sessionArchive || [] };
       } else if(parsed){
         // legacy flat map format
-        state = { overlay: parsed, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [] };
+        state = { overlay: parsed, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [] };
       }
     }
-  }catch(e){ state = { overlay: {}, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [] }; }
+  }catch(e){ state = { overlay: {}, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [] }; }
 }
 async function saveState(){
   try{ await storageAdapter.set(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
@@ -1044,7 +1044,17 @@ async function setLiveActive(active){
     if(log.length > 0){
       const total = log.reduce((sum, s) => sum + parseFloat(s.price || 0), 0);
       const lines = log.map(s => `Lot ${s.lot} (No. ${String(s.num).padStart(2,'0')}): ${s.name} — $${s.price}`).join('\n');
-      window.alert(`Live session ended.\n\n${log.length} item(s) sold, $${total.toFixed(2)} total:\n\n${lines}`);
+      state.sessionArchive = state.sessionArchive || [];
+      state.sessionArchive.unshift({
+        endedAt: new Date().toISOString(),
+        log: log,
+        count: log.length,
+        total: total
+      });
+      // keep the archive from growing without bound
+      if(state.sessionArchive.length > 30) state.sessionArchive = state.sessionArchive.slice(0, 30);
+      await saveState();
+      window.alert(`Live session ended.\n\n${log.length} item(s) sold, $${total.toFixed(2)} total:\n\n${lines}\n\nThis session has been saved to the archive — view it anytime from the Sales Sheet panel.`);
     } else {
       window.alert('Live session ended. No items were marked sold this session.');
     }
