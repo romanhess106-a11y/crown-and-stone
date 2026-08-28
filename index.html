@@ -797,7 +797,7 @@
 <div class="sales-sheet-overlay" id="salesSheetOverlay" style="display:none;">
   <div class="sales-sheet-panel">
     <div class="sales-sheet-header">
-      <h2>Sales Sheet — This Session</h2>
+      <h2 id="salesSheetTitle">Sales Sheet — This Session</h2>
       <div class="sales-sheet-header-actions">
         <a class="sales-sheet-tab-link" id="salesSheetTabLink" href="sales-sheet.html" target="_blank" rel="noopener">↗ Open in Tab / Archive</a>
         <button class="sales-sheet-close" id="salesSheetClose">✕</button>
@@ -908,7 +908,7 @@ const storageAdapter = {
 };
 
 const STORAGE_KEY = 'crown-stone-show-state-v2';
-let state = { overlay: {}, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [] };
+let state = { overlay: {}, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [], sessionStartedAt: null };
 let items = [];
 let filtered = [];
 let currentFilter = 'all';
@@ -922,13 +922,13 @@ async function loadState(){
     if(res && res.value){
       const parsed = JSON.parse(res.value);
       if(parsed && parsed.overlay){
-        state = { overlay: parsed.overlay || {}, order: parsed.order || null, duplicates: parsed.duplicates || {}, liveLotCounter: parsed.liveLotCounter || 0, sessionLog: parsed.sessionLog || [], sessionArchive: parsed.sessionArchive || [] };
+        state = { overlay: parsed.overlay || {}, order: parsed.order || null, duplicates: parsed.duplicates || {}, liveLotCounter: parsed.liveLotCounter || 0, sessionLog: parsed.sessionLog || [], sessionArchive: parsed.sessionArchive || [], sessionStartedAt: parsed.sessionStartedAt || null };
       } else if(parsed){
         // legacy flat map format
-        state = { overlay: parsed, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [] };
+        state = { overlay: parsed, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [], sessionStartedAt: null };
       }
     }
-  }catch(e){ state = { overlay: {}, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [] }; }
+  }catch(e){ state = { overlay: {}, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [], sessionStartedAt: null }; }
 }
 async function saveState(){
   try{ await storageAdapter.set(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
@@ -976,12 +976,25 @@ let undoTimer = null;
 let liveModeActive = false;
 let currentRunningId = null;
 
+function formatSessionDate(iso){
+  if(!iso) return null;
+  try{
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { month:'short', day:'numeric' }) + ' at ' +
+      d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+  }catch(e){ return null; }
+}
+
 function renderSalesSheet(){
   const log = state.sessionLog || [];
   const body = document.getElementById('salesSheetBody');
   const empty = document.getElementById('salesSheetEmpty');
   const totalEl = document.getElementById('salesSheetTotal');
   const sheetBtn = document.getElementById('salesSheetBtn');
+  const titleEl = document.getElementById('salesSheetTitle');
+
+  const startedLabel = formatSessionDate(state.sessionStartedAt);
+  titleEl.textContent = startedLabel ? `Sales Sheet — Started ${startedLabel}` : 'Sales Sheet — This Session';
 
   if(sheetBtn) sheetBtn.textContent = log.length ? `📋 Sales Sheet (${log.length})` : '📋 Sales Sheet';
 
@@ -1032,6 +1045,7 @@ async function setLiveActive(active){
     sheetBtn.style.display = 'inline-block';
     state.liveLotCounter = 0;
     state.sessionLog = [];
+    state.sessionStartedAt = new Date().toISOString();
     await saveState();
     renderSalesSheet();
   } else {
@@ -1044,6 +1058,7 @@ async function setLiveActive(active){
       const lines = log.map(s => `Lot ${s.lot} (No. ${String(s.num).padStart(2,'0')}): ${s.name} — $${s.price}`).join('\n');
       state.sessionArchive = state.sessionArchive || [];
       state.sessionArchive.unshift({
+        startedAt: state.sessionStartedAt || null,
         endedAt: new Date().toISOString(),
         log: log,
         count: log.length,
@@ -1058,6 +1073,7 @@ async function setLiveActive(active){
     }
   }
   updateLiveBanner();
+  renderSalesSheet();
 }
 
 function runItem(id){
