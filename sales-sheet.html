@@ -160,7 +160,7 @@
 
     <table id="salesTable" style="display:none;">
       <thead>
-        <tr><th>Lot</th><th>No.</th><th>SKU</th><th>Item</th><th>Price</th></tr>
+        <tr><th>Lot</th><th>No.</th><th>Item</th></tr>
       </thead>
       <tbody id="salesBody"></tbody>
     </table>
@@ -263,9 +263,7 @@ function render(){
     <tr>
       <td class="lot-cell">#${escapeHtml(s.lot)}</td>
       <td class="num-cell">${String(s.num).padStart(2,'0')}</td>
-      <td>${escapeHtml(s.sku)}</td>
       <td>${escapeHtml(s.name)}</td>
-      <td>$${escapeHtml(s.price)}</td>
     </tr>
   `).join('');
 }
