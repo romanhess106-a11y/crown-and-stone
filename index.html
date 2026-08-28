@@ -585,14 +585,14 @@
     transition:transform .12s ease, border-color .15s ease, box-shadow .15s ease;
     position:relative;
     display:grid;
-    grid-template-columns:20px 46px 210px 1fr 70px 70px 70px 60px 84px;
+    grid-template-columns:20px 46px 210px 1fr 70px 70px 70px 84px;
     align-items:center;
     gap:14px;
     padding:12px 16px 12px 12px;
   }
   .grid-header{
     display:grid;
-    grid-template-columns:20px 46px 210px 1fr 70px 70px 70px 60px 84px;
+    grid-template-columns:20px 46px 210px 1fr 70px 70px 70px 84px;
     gap:14px;
     padding:0 16px 10px 12px;
     font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:0.06em;
@@ -601,9 +601,8 @@
   }
   .grid-header > div:nth-child(5),
   .grid-header > div:nth-child(6),
-  .grid-header > div:nth-child(7),
+  .grid-header > div:nth-child(7){ text-align:center; }
   .grid-header > div:nth-child(8){ text-align:center; }
-  .grid-header > div:nth-child(9){ text-align:center; }
   @media (max-width:900px){
     .grid-header{display:none;}
   }
@@ -1209,8 +1208,7 @@
     <div>Item Details</div>
     <div>Cost</div>
     <div>Retail</div>
-    <div>On Hand</div>
-    <div>Left</div>
+    <div>Stock</div>
     <div>Actions</div>
   </div>
   <div class="grid" id="grid"></div>
@@ -1910,7 +1908,6 @@ function renderGrid(){
         <div class="card-body">
           <div class="card-name" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="name">${escapeHtml(it.name)}</div>
           <div class="card-specs">
-            <span class="card-sku">SKU ${it.sku}</span>
             <span class="spec-tag" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="length">${escapeHtml(it.length || 'Add length')}</span>
             <span class="spec-tag" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="width">${escapeHtml(it.width || 'Add width')}</span>
             <span class="spec-tag material" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="material">${escapeHtml(it.material || 'Add material')}</span>
@@ -1918,7 +1915,6 @@ function renderGrid(){
         </div>
         <div class="col-cost">$<span contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="price">${escapeHtml(it.price)}</span></div>
         <div class="col-retail">$<span contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="retailPrice">${escapeHtml(it.retailPrice || '—')}</span></div>
-        <div class="col-onhand">${onHand}</div>
         <div class="col-left ${leftLow ? 'low' : ''}"><span contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" inputmode="numeric" data-id="${it.id}" data-field="qty">${it.qty}</span></div>
         ${selectMode ? '<div></div>' : `
         <div class="card-actions">
@@ -2141,7 +2137,7 @@ function renderFocus(){
   document.getElementById('focusImg').src = it.image;
   document.getElementById('focusHeroBadge').style.display = it.isHero ? 'inline-block' : 'none';
   document.getElementById('focusRunningBadge').style.display = (liveModeActive && currentRunningId === it.id) ? 'inline-flex' : 'none';
-  document.getElementById('focusSku').textContent = `No. ${String(it.num).padStart(2,'0')} · ${it.sku}`;
+  document.getElementById('focusSku').textContent = `No. ${String(it.num).padStart(2,'0')}`;
   document.getElementById('focusName').textContent = it.name;
   const specParts = [];
   if(it.length) specParts.push(`<span class="focus-spec-tag">${escapeHtml(it.length)}</span>`);
