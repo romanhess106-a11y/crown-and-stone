@@ -241,6 +241,13 @@
     transition:all .15s ease;
   }
   .sales-sheet-close:hover{border-color:var(--gold); color:var(--gold-bright);}
+  .sales-sheet-header-actions{display:flex; align-items:center; gap:10px;}
+  .sales-sheet-tab-link{
+    font-family:var(--mono); font-size:11.5px; font-weight:600; letter-spacing:0.03em;
+    color:var(--gold-bright); text-decoration:none; border:1px solid var(--gold);
+    padding:8px 14px; border-radius:999px; white-space:nowrap; transition:all .15s ease;
+  }
+  .sales-sheet-tab-link:hover{background:var(--gold); color:#fdf9f0;}
   .sales-sheet-table-wrap{
     flex:1; overflow-y:auto; padding:0 22px;
   }
@@ -791,7 +798,10 @@
   <div class="sales-sheet-panel">
     <div class="sales-sheet-header">
       <h2>Sales Sheet — This Session</h2>
-      <button class="sales-sheet-close" id="salesSheetClose">✕</button>
+      <div class="sales-sheet-header-actions">
+        <a class="sales-sheet-tab-link" id="salesSheetTabLink" href="sales-sheet.html" target="_blank" rel="noopener">↗ Open in Tab</a>
+        <button class="sales-sheet-close" id="salesSheetClose">✕</button>
+      </div>
     </div>
     <div class="sales-sheet-table-wrap">
       <table class="sales-sheet-table">
