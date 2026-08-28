@@ -91,6 +91,23 @@
   }
   .session-picker select:focus{border-color:var(--gold);}
 
+  .export-row{
+    display:flex; gap:10px; margin-bottom:22px; flex-wrap:wrap;
+  }
+  .export-sheet-btn, .export-all-btn{
+    font-family:var(--mono); font-weight:600; font-size:12.5px; letter-spacing:0.03em;
+    padding:11px 18px; border-radius:999px; cursor:pointer; white-space:nowrap;
+    transition:all .15s ease;
+  }
+  .export-sheet-btn{
+    background:var(--panel); border:1px solid var(--hairline); color:var(--cream-dim);
+  }
+  .export-sheet-btn:hover{border-color:var(--gold); color:var(--gold-bright);}
+  .export-all-btn{
+    background:var(--gold); border:none; color:#fdf9f0;
+  }
+  .export-all-btn:hover{background:var(--gold-bright);}
+
   .summary-row{
     display:flex; gap:16px; margin-bottom:26px; flex-wrap:wrap;
   }
@@ -146,6 +163,11 @@
     <div class="session-picker">
       <label for="sessionSelect">Viewing:</label>
       <select id="sessionSelect"></select>
+    </div>
+
+    <div class="export-row">
+      <button class="export-sheet-btn" id="exportSheetBtn">⬇ Export This Sheet</button>
+      <button class="export-all-btn" id="exportAllBtn">⬇ Export Complete Sales History</button>
     </div>
 
     <div class="summary-row">
@@ -281,6 +303,28 @@ function render(){
   `).join('');
 }
 
+function csvEscape(val){
+  const str = String(val == null ? '' : val);
+  if(/[",\n]/.test(str)){
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
+function downloadCSV(filename, rows){
+  const csv = rows.map(r => r.map(csvEscape).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function safeFilenamePart(str){
+  return (str || 'session').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const select = document.getElementById('sessionSelect');
   if(select){
@@ -289,6 +333,47 @@ document.addEventListener('DOMContentLoaded', () => {
       render();
     });
   }
+
+  document.getElementById('exportSheetBtn').addEventListener('click', () => {
+    const state = loadState();
+    let log, label;
+    if(selectedSessionValue === 'current'){
+      log = state.sessionLog || [];
+      label = formatDate(state.sessionStartedAt) || 'current-session';
+    } else {
+      const idx = parseInt(selectedSessionValue.replace('archive-',''), 10);
+      const archived = state.sessionArchive[idx];
+      log = archived ? archived.log : [];
+      label = (archived && formatDate(archived.startedAt)) || 'session';
+    }
+    const sorted = [...log].sort((a,b) => a.lot - b.lot);
+    const rows = [['Lot', 'Item No.', 'Description']]
+      .concat(sorted.map(s => [s.lot, String(s.num).padStart(2,'0'), s.name]));
+    downloadCSV(`crown-and-stone-sales-${safeFilenamePart(label)}.csv`, rows);
+  });
+
+  document.getElementById('exportAllBtn').addEventListener('click', () => {
+    const state = loadState();
+    const rows = [['Session Started', 'Lot', 'Item No.', 'Description']];
+
+    const currentLabel = formatDate(state.sessionStartedAt) || 'Current session';
+    [...(state.sessionLog || [])].sort((a,b) => a.lot - b.lot).forEach(s => {
+      rows.push([currentLabel, s.lot, String(s.num).padStart(2,'0'), s.name]);
+    });
+
+    (state.sessionArchive || []).forEach(sess => {
+      const label = formatDate(sess.startedAt) || formatDate(sess.endedAt) || 'Past session';
+      [...(sess.log || [])].sort((a,b) => a.lot - b.lot).forEach(s => {
+        rows.push([label, s.lot, String(s.num).padStart(2,'0'), s.name]);
+      });
+    });
+
+    if(rows.length === 1){
+      alert('No sales recorded yet across any session.');
+      return;
+    }
+    downloadCSV('crown-and-stone-complete-sales-history.csv', rows);
+  });
 });
 
 // live cross-tab updates: fires in THIS tab whenever another tab (the show
