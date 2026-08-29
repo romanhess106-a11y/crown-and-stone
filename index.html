@@ -41,7 +41,7 @@
   /* ---------- top bar ---------- */
   .hero{
     text-align:center;
-    padding:36px 24px 26px;
+    padding:32px 24px 16px;
     border-bottom:1px solid var(--hairline);
     background:rgba(247,243,234,0.5);
     position:relative;
@@ -164,6 +164,12 @@
   .corner-actions .sales-sheet-btn,
   .corner-actions .add-item-btn{
     font-size:11px; padding:7px 13px;
+  }
+  .corner-actions .overflow-btn{
+    width:30px; height:30px; font-size:15px;
+  }
+  .corner-actions .overflow-menu{
+    right:0; left:auto;
   }
 
   .search-wrap{
@@ -568,7 +574,7 @@
 
   .status-tabs{
     display:flex; justify-content:center; gap:0;
-    max-width:900px; margin:20px auto 0;
+    max-width:900px; margin:0 auto 0;
     border-bottom:1px solid var(--hairline);
     padding:0 24px;
   }
@@ -1100,6 +1106,12 @@
     <button class="export-btn" id="exportBtn" title="Download your current list as a file to send back to Claude">⬇ Export</button>
     <button class="sales-sheet-btn" id="salesSheetBtn" style="display:none;">📋 Sales Sheet</button>
     <button class="add-item-btn" id="addItemBtn">+ Add Item</button>
+    <div class="overflow-wrap">
+      <button class="overflow-btn" id="overflowBtn" title="More options" aria-label="More options">⋯</button>
+      <div class="overflow-menu" id="overflowMenu" style="display:none;">
+        <button id="enterSelectModeBtn">🗑 Select Items to Delete</button>
+      </div>
+    </div>
   </div>
   <div class="hero-wordmark">👑 CROWN &amp; STONE</div>
   <div class="hero-sub">Show Board</div>
@@ -2346,7 +2358,25 @@ document.getElementById('filterBar').addEventListener('click', (e) => {
   renderGrid();
 });
 
+document.getElementById('overflowBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const menu = document.getElementById('overflowMenu');
+  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+});
+
+document.getElementById('enterSelectModeBtn').addEventListener('click', () => {
+  document.getElementById('overflowMenu').style.display = 'none';
+  selectMode = true;
+  selectedIds = new Set();
+  updateBulkBar();
+  renderGrid();
+});
+
 document.addEventListener('click', (e) => {
+  const menu = document.getElementById('overflowMenu');
+  if(menu.style.display !== 'none' && !e.target.closest('.overflow-wrap')){
+    menu.style.display = 'none';
+  }
   if(!e.target.closest('.card-menu-wrap')){
     document.querySelectorAll('.card-menu-dropdown').forEach(d => d.style.display = 'none');
   }
