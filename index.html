@@ -53,11 +53,15 @@
     font-family:var(--mono); font-size:11px; letter-spacing:0.18em; text-transform:uppercase;
     color:var(--gold-bright); margin-bottom:22px;
   }
+  .hero-btn-row{
+    display:flex; align-items:center; justify-content:center; gap:14px;
+    width:100%; max-width:560px; margin:0 auto; flex-wrap:wrap;
+  }
   .hero-live-btn{
     background:var(--gold); color:#1a1508; border:none;
     font-family:var(--mono); font-weight:800; font-size:16px; letter-spacing:0.04em;
     padding:18px 0; border-radius:999px; cursor:pointer;
-    width:100%; max-width:420px;
+    flex:2; min-width:220px;
     box-shadow:0 14px 34px rgba(212,175,106,0.28);
     transition:all .15s ease;
   }
@@ -415,6 +419,15 @@
     transition:all .15s ease;
   }
   .archive-btn:hover{border-color:var(--gold); color:var(--gold-bright);}
+  .hero-archive-btn{
+    background:var(--panel); color:var(--cream); border:1.5px solid var(--gold);
+    font-family:var(--mono); font-weight:700; font-size:15px; letter-spacing:0.03em;
+    padding:17px 0; border-radius:999px; cursor:pointer;
+    flex:1; min-width:180px;
+    box-shadow:0 10px 26px rgba(43,38,32,0.1);
+    transition:all .15s ease;
+  }
+  .hero-archive-btn:hover{background:rgba(184,134,63,0.08); color:var(--gold-bright); transform:translateY(-1px);}
 
   .add-item-btn{
     background:var(--gold); color:#fdf9f0; border:none;
@@ -1078,8 +1091,11 @@
 <div class="hero">
   <div class="hero-wordmark">👑 CROWN &amp; STONE</div>
   <div class="hero-sub">Show Board</div>
-  <button class="hero-live-btn" id="startLiveBtn">▶ Start Live</button>
-  <button class="hero-live-btn hero-live-btn-end" id="endLiveBtn" style="display:none;">■ End Live</button>
+  <div class="hero-btn-row">
+    <button class="hero-live-btn" id="startLiveBtn">▶ Start Live</button>
+    <button class="hero-live-btn hero-live-btn-end" id="endLiveBtn" style="display:none;">■ End Live</button>
+    <button class="hero-archive-btn" id="archiveBtn">🗂 Past Streams</button>
+  </div>
 </div>
 
 <div class="search-filter-row">
@@ -1103,7 +1119,6 @@
   </div>
   <button class="export-btn" id="exportBtn" title="Download your current list as a file to send back to Claude">⬇ Export</button>
   <button class="sales-sheet-btn" id="salesSheetBtn" style="display:none;">📋 Sales Sheet</button>
-  <button class="archive-btn" id="archiveBtn">🗂 Past Streams</button>
   <button class="add-item-btn" id="addItemBtn">+ Add Item</button>
 </div>
 
