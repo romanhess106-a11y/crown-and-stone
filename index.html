@@ -1606,6 +1606,7 @@ async function fsGet(key){
 // teammate's when the live listener fires
 const clientInstanceId = 'client-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 let liveListenerUnsub = null;
+let recentLocalWriteUntil = 0;
 let onRemoteUpdate = null; // set later, once loadState/renderGrid exist
 
 function startLiveListener(key){
@@ -1615,8 +1616,9 @@ function startLiveListener(key){
     liveListenerUnsub = db.collection(FS_COLLECTION).doc(key + '_meta')
       .onSnapshot((snap) => {
         if(!snap.exists) return;
+        if(Date.now() < recentLocalWriteUntil) return; // ignore echoes of our own recent save
         const data = snap.data();
-        if(data.updatedBy === clientInstanceId) return; // our own write, ignore
+        if(data.updatedBy === clientInstanceId) return; // extra safety: our own write, ignore
         if(typeof onRemoteUpdate === 'function') onRemoteUpdate();
       });
   }catch(e){}
@@ -1692,6 +1694,11 @@ async function loadState(){
   }catch(e){ state = { overlay: {}, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [], sessionStartedAt: null }; }
 }
 async function saveState(){
+  // Suppress the live listener from reacting to our own writes for a
+  // short window — this is a defense-in-depth against a race where a
+  // just-uploaded photo (or any edit) could get overwritten by a stale
+  // "echo" of our own save arriving back through the sync listener.
+  recentLocalWriteUntil = Date.now() + 4000;
   try{
     const result = await storageAdapter.set(STORAGE_KEY, JSON.stringify(state));
     if(!result){
