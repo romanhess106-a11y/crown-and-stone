@@ -367,6 +367,21 @@
   }
   .session-end-ok:hover{filter:brightness(1.08); transform:translateY(-1px);}
 
+  .start-live-date-note{
+    font-family:var(--sans); font-size:13px; color:var(--cream-dim); line-height:1.5;
+    margin-bottom:18px; max-width:300px;
+  }
+  .start-live-date-input{
+    width:100%; max-width:280px;
+    font-family:var(--mono); font-size:15px; color:var(--cream);
+    background:var(--panel-2); border:1px solid var(--hairline); border-radius:10px;
+    padding:12px 14px; outline:none; margin-bottom:20px;
+    transition:border-color .15s ease;
+  }
+  .start-live-date-input:focus{border-color:var(--gold);}
+  .start-live-date-actions{display:flex; gap:12px; width:100%; max-width:320px;}
+  .start-live-date-actions .confirm-modal-cancel{flex:1; padding:14px;}
+  .start-live-date-actions .session-end-ok{flex:2; padding:14px 20px;}
 
 
   .sales-sheet-overlay{
@@ -1169,6 +1184,18 @@
   </div>
 </div>
 
+<div class="session-end-overlay" id="startLiveDateOverlay" style="display:none;">
+  <div class="session-end-modal">
+    <div class="session-end-label">Name This Stream</div>
+    <div class="start-live-date-note">Pick the date &amp; time for this show — it'll be saved as this session's label in your archive.</div>
+    <input type="datetime-local" id="startLiveDateInput" class="start-live-date-input">
+    <div class="start-live-date-actions">
+      <button class="confirm-modal-cancel" id="startLiveDateCancel">Cancel</button>
+      <button class="session-end-ok" id="startLiveDateConfirm">▶ Start Live</button>
+    </div>
+  </div>
+</div>
+
 <div class="session-end-overlay" id="sessionEndOverlay" style="display:none;">
   <div class="session-end-modal">
     <div class="session-end-label">Live Session Ended</div>
@@ -1641,7 +1668,7 @@ function showSessionEndedModal(count, total){
   document.getElementById('sessionEndOverlay').style.display = 'flex';
 }
 
-async function setLiveActive(active){
+async function setLiveActive(active, customStartDate){
   liveModeActive = active;
   const startBtn = document.getElementById('startLiveBtn');
   const endBtn = document.getElementById('endLiveBtn');
@@ -1652,7 +1679,7 @@ async function setLiveActive(active){
     sheetBtn.style.display = 'inline-block';
     state.liveLotCounter = 0;
     state.sessionLog = [];
-    state.sessionStartedAt = new Date().toISOString();
+    state.sessionStartedAt = customStartDate || new Date().toISOString();
     await saveState();
     renderSalesSheet();
   } else {
@@ -2574,8 +2601,38 @@ async function saveNote(){
   await saveState();
 }
 
+function pad2(n){ return String(n).padStart(2, '0'); }
+function nowForDatetimeLocal(){
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
 document.getElementById('startLiveBtn').addEventListener('click', () => {
-  setLiveActive(true);
+  document.getElementById('startLiveDateInput').value = nowForDatetimeLocal();
+  document.getElementById('startLiveDateOverlay').style.display = 'flex';
+});
+
+document.getElementById('startLiveDateCancel').addEventListener('click', () => {
+  document.getElementById('startLiveDateOverlay').style.display = 'none';
+});
+
+document.getElementById('startLiveDateOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'startLiveDateOverlay'){
+    document.getElementById('startLiveDateOverlay').style.display = 'none';
+  }
+});
+
+document.getElementById('startLiveDateConfirm').addEventListener('click', () => {
+  const raw = document.getElementById('startLiveDateInput').value;
+  let isoString;
+  if(raw){
+    const parsed = new Date(raw);
+    isoString = isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+  } else {
+    isoString = new Date().toISOString();
+  }
+  document.getElementById('startLiveDateOverlay').style.display = 'none';
+  setLiveActive(true, isoString);
 });
 
 document.getElementById('endLiveBtn').addEventListener('click', () => {
