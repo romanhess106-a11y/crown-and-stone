@@ -887,6 +887,18 @@
     background:none; border:none; color:var(--gold-bright); font-family:var(--mono);
     font-size:13px; font-weight:600; letter-spacing:0.04em; cursor:pointer; text-transform:uppercase;
   }
+
+  .saved-indicator{
+    position:fixed; bottom:24px; left:24px; z-index:200;
+    background:var(--good); color:#fff;
+    font-family:var(--mono); font-weight:700; font-size:12px; letter-spacing:0.04em;
+    padding:9px 16px; border-radius:999px;
+    box-shadow:0 8px 20px rgba(95,138,83,0.35);
+    opacity:0; transform:translateY(8px);
+    transition:opacity .2s ease, transform .2s ease;
+    pointer-events:none;
+  }
+  .saved-indicator.show{opacity:1; transform:translateY(0);}
   @media (max-width:760px){
     .card{
       display:flex; flex-wrap:wrap; align-items:center; gap:10px;
@@ -1086,6 +1098,22 @@
   }
   .app-hidden{display:none !important;}
 
+  .save-error-banner{
+    position:sticky; top:0; z-index:400;
+    background:var(--danger); color:#fff;
+    font-family:var(--sans); font-size:14px; font-weight:600; line-height:1.5;
+    padding:14px 50px 14px 20px;
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    box-shadow:0 4px 16px rgba(193,84,74,0.3);
+  }
+  .save-error-dismiss{
+    position:absolute; right:16px; top:50%; transform:translateY(-50%);
+    background:none; border:none; color:#fff; font-size:18px; cursor:pointer;
+    width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    transition:background .15s ease;
+  }
+  .save-error-dismiss:hover{background:rgba(255,255,255,0.2);}
+
   .lock-screen{
     position:fixed; inset:0; z-index:500;
     background:
@@ -1142,6 +1170,10 @@
 </div>
 
 <div id="appRoot" class="app-hidden">
+<div class="save-error-banner" id="saveErrorBanner" style="display:none;">
+  ⚠ Your last change couldn't be saved — your device's storage is likely full. <strong>Tap Export now</strong> to back up your catalog before doing anything else, then free up space (delete a few uploaded photos) to keep editing safely.
+  <button class="save-error-dismiss" id="saveErrorDismiss">✕</button>
+</div>
 <div class="hero">
   <div class="corner-actions">
     <button class="export-btn" id="exportBtn" title="Download your current list as a file to send back to Claude">⬇ Export</button>
@@ -1371,6 +1403,8 @@
   <span id="undoText">Item removed</span>
   <button id="undoBtn">Undo</button>
 </div>
+
+<div class="saved-indicator" id="savedIndicator">✓ Saved</div>
 </div>
 
 <script>
@@ -1420,7 +1454,37 @@ async function loadState(){
   }catch(e){ state = { overlay: {}, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [], sessionStartedAt: null }; }
 }
 async function saveState(){
-  try{ await storageAdapter.set(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+  try{
+    const result = await storageAdapter.set(STORAGE_KEY, JSON.stringify(state));
+    if(!result){
+      showSaveErrorBanner();
+      return false;
+    }
+    hideSaveErrorBanner();
+    flashSavedIndicator();
+    return true;
+  }catch(e){
+    showSaveErrorBanner();
+    return false;
+  }
+}
+
+let saveToastTimer = null;
+function flashSavedIndicator(){
+  const el = document.getElementById('savedIndicator');
+  if(!el) return;
+  el.classList.add('show');
+  clearTimeout(saveToastTimer);
+  saveToastTimer = setTimeout(() => el.classList.remove('show'), 1100);
+}
+
+function showSaveErrorBanner(){
+  const banner = document.getElementById('saveErrorBanner');
+  if(banner) banner.style.display = 'flex';
+}
+function hideSaveErrorBanner(){
+  const banner = document.getElementById('saveErrorBanner');
+  if(banner) banner.style.display = 'none';
 }
 
 function initItems(){
@@ -1780,7 +1844,7 @@ function processUploadedFile(file){
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
-        const maxDim = 640;
+        const maxDim = 460;
         let w = img.width, h = img.height;
         if(w > h && w > maxDim){ h = Math.round(h * (maxDim / w)); w = maxDim; }
         else if(h > maxDim){ w = Math.round(w * (maxDim / h)); h = maxDim; }
@@ -1788,7 +1852,7 @@ function processUploadedFile(file){
         canvas.width = w; canvas.height = h;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', 0.88));
+        resolve(canvas.toDataURL('image/jpeg', 0.75));
       };
       img.onerror = reject;
       img.src = e.target.result;
@@ -2563,6 +2627,10 @@ document.getElementById('confirmModalCancel').addEventListener('click', (e) => {
 });
 document.getElementById('confirmModalOverlay').addEventListener('click', (e) => {
   if(e.target.id === 'confirmModalOverlay') closeConfirmModal();
+});
+
+document.getElementById('saveErrorDismiss').addEventListener('click', () => {
+  hideSaveErrorBanner();
 });
 
 document.getElementById('sessionEndOk').addEventListener('click', () => {
