@@ -1403,6 +1403,7 @@ function initItems(){
         width: o.width !== undefined ? o.width : it.width,
         image: o.image !== undefined ? o.image : it.image,
         retailPrice: o.retailPrice !== undefined ? o.retailPrice : (it.retailPrice || ''),
+        sku: o.sku !== undefined ? o.sku : it.sku,
         note: o.note || ''
       };
     });
@@ -2036,7 +2037,7 @@ function renderGrid(){
           </div>` : ''}
         </div>
         <div class="card-body">
-          <div class="card-sku">SKU <span class="sku-text">${escapeHtml(it.sku)}</span><button class="sku-copy-btn" data-sku="${escapeHtml(it.sku)}" title="Copy SKU" aria-label="Copy SKU">
+          <div class="card-sku">SKU <span class="sku-text" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="sku">${escapeHtml(it.sku)}</span><button class="sku-copy-btn" data-sku="${escapeHtml(it.sku)}" title="Copy SKU" aria-label="Copy SKU">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
           </button></div>
           <div class="card-name" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="name">${escapeHtml(it.name)}</div>
@@ -2255,6 +2256,7 @@ async function commitEdit(el){
     el.textContent = value;
   }
   if(field === 'name' && value === '') value = it.name; // don't allow blank names
+  if(field === 'sku' && value === '') value = it.sku; // don't allow blank SKU
 
   if(it[field] === value) return;
   it[field] = value;
@@ -2269,8 +2271,8 @@ async function commitEdit(el){
   if(field === 'width' && value === ''){
     el.textContent = 'Add width';
   }
-  if(field === 'qty' || field === 'retailPrice'){
-    renderGrid(); // refresh On Hand/Left/Status columns which derive from qty
+  if(field === 'qty' || field === 'retailPrice' || field === 'sku'){
+    renderGrid(); // refresh derived columns / copy-button data-sku
   }
 }
 
