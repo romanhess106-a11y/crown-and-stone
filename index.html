@@ -729,7 +729,16 @@
   .card-sku{
     font-family:var(--mono); font-size:11.5px; color:var(--gold);
     letter-spacing:0.06em;
+    display:flex; align-items:center; gap:6px;
   }
+  .sku-copy-btn{
+    background:none; border:none; color:var(--cream-dim); cursor:pointer;
+    padding:2px; display:inline-flex; align-items:center; justify-content:center;
+    border-radius:4px; transition:all .12s ease;
+  }
+  .sku-copy-btn svg{width:12px; height:12px;}
+  .sku-copy-btn:hover{color:var(--gold-bright); background:rgba(184,134,63,0.1);}
+  .sku-copy-btn.copied{color:var(--good);}
   .card-variant{
     font-family:var(--mono); font-size:11px; color:var(--cream-dim);
     letter-spacing:0.02em;
@@ -908,9 +917,11 @@
     max-width:1500px; width:100%; height:100%; align-items:center;
   }
   .focus-info{display:flex; flex-direction:column; gap:18px; min-width:0;}
+  .focus-sku-row{display:flex; align-items:center; gap:8px;}
   .focus-sku{
     font-family:var(--mono); font-size:15px; color:var(--gold); letter-spacing:0.08em;
   }
+  .focus-sku-copy svg{width:15px; height:15px;}
   .focus-variant{
     font-family:var(--mono); font-size:13px; color:var(--cream-dim); letter-spacing:0.03em;
   }
@@ -1279,7 +1290,12 @@
       <div class="focus-info">
         <div id="focusRunningBadge" class="focus-live-badge" style="display:none;">🔴 Running Now</div>
         <div id="focusHeroBadge" class="focus-hero-badge" style="display:none;">★ Hero Piece</div>
-        <div class="focus-sku" id="focusSku"></div>
+        <div class="focus-sku-row">
+          <div class="focus-sku" id="focusSku"></div>
+          <button class="sku-copy-btn focus-sku-copy" id="focusSkuCopy" title="Copy SKU" aria-label="Copy SKU">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+          </button>
+        </div>
         <div class="focus-name" id="focusName"></div>
         <div class="focus-specs" id="focusSpecs"></div>
         <div class="focus-price-row">
@@ -1775,6 +1791,27 @@ document.getElementById('focusImgUpload').addEventListener('click', (e) => {
   triggerImageUpload(it.id);
 });
 
+document.getElementById('focusSkuCopy').addEventListener('click', async (e) => {
+  e.stopPropagation();
+  const btn = e.currentTarget;
+  const sku = btn.getAttribute('data-sku');
+  if(!sku) return;
+  try{
+    await navigator.clipboard.writeText(sku);
+  }catch(err){
+    const ta = document.createElement('textarea');
+    ta.value = sku;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try{ document.execCommand('copy'); }catch(e2){}
+    document.body.removeChild(ta);
+  }
+  btn.classList.add('copied');
+  setTimeout(() => btn.classList.remove('copied'), 1200);
+});
+
 function makePlaceholderImage(){
   const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
     <rect width='100' height='100' fill='#eee4d3'/>
@@ -1999,8 +2036,10 @@ function renderGrid(){
           </div>` : ''}
         </div>
         <div class="card-body">
+          <div class="card-sku">SKU <span class="sku-text">${escapeHtml(it.sku)}</span><button class="sku-copy-btn" data-sku="${escapeHtml(it.sku)}" title="Copy SKU" aria-label="Copy SKU">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+          </button></div>
           <div class="card-name" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="name">${escapeHtml(it.name)}</div>
-          <div class="card-sku">SKU ${escapeHtml(it.sku)}</div>
           <div class="card-specs">
             <span class="spec-tag" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="length">${escapeHtml(it.length || 'Add length')}</span>
             <span class="spec-tag" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="width">${escapeHtml(it.width || 'Add width')}</span>
@@ -2085,6 +2124,28 @@ function renderGrid(){
       e.stopPropagation();
       const id = el.getAttribute('data-id');
       triggerImageUpload(id);
+    });
+  });
+
+  grid.querySelectorAll('.sku-copy-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const sku = btn.getAttribute('data-sku');
+      try{
+        await navigator.clipboard.writeText(sku);
+      }catch(err){
+        // fallback for browsers/contexts without clipboard API access
+        const ta = document.createElement('textarea');
+        ta.value = sku;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try{ document.execCommand('copy'); }catch(e2){}
+        document.body.removeChild(ta);
+      }
+      btn.classList.add('copied');
+      setTimeout(() => btn.classList.remove('copied'), 1200);
     });
   });
 
@@ -2247,6 +2308,7 @@ function renderFocus(){
   document.getElementById('focusHeroBadge').style.display = it.isHero ? 'inline-block' : 'none';
   document.getElementById('focusRunningBadge').style.display = (liveModeActive && currentRunningId === it.id) ? 'inline-flex' : 'none';
   document.getElementById('focusSku').textContent = `No. ${String(it.num).padStart(2,'0')} · SKU ${it.sku}`;
+  document.getElementById('focusSkuCopy').setAttribute('data-sku', it.sku);
   document.getElementById('focusName').textContent = it.name;
   const specParts = [];
   if(it.length) specParts.push(`<span class="focus-spec-tag">${escapeHtml(it.length)}</span>`);
