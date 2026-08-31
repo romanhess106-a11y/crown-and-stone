@@ -280,7 +280,7 @@
   }
   .confirm-modal{
     background:var(--panel); border-radius:20px; overflow:hidden;
-    max-width:420px; width:100%;
+    max-width:640px; width:100%;
     box-shadow:0 40px 100px rgba(43,38,32,0.22);
     display:flex; flex-direction:column;
   }
@@ -1682,9 +1682,9 @@ function runItem(id){
   currentRunningId = id;
   if(!liveModeActive) setLiveActive(true);
   filtered = items.slice();
-  const idx = filtered.findIndex(x => x.id === id);
-  openFocus(idx);
+  focusIndex = filtered.findIndex(x => x.id === id);
   updateLiveBanner();
+  openConfirmModal(it);
 }
 
 async function unlockItem(id){
@@ -2569,8 +2569,6 @@ async function saveNote(){
 
 document.getElementById('startLiveBtn').addEventListener('click', () => {
   setLiveActive(true);
-  applyFilters();
-  if(filtered.length > 0) openFocus(0);
 });
 
 document.getElementById('endLiveBtn').addEventListener('click', () => {
