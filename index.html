@@ -1461,20 +1461,92 @@ const RAW_ITEMS = [{"id": "item-21", "sku": "NH47536424", "variant": "S071-A (Eu
 
 // Works both inside Claude (uses window.storage) and as a standalone hosted
 // page (falls back to the browser's own localStorage).
+// Works both inside Claude (uses window.storage) and as a standalone hosted
+// page — where it prefers IndexedDB (much larger quota, typically hundreds of
+// MB or more based on free disk space) over localStorage (a fixed ~5-10MB cap
+// browsers won't allow past). Falls back to localStorage only if IndexedDB
+// isn't available, and auto-migrates any existing localStorage data over.
+const IDB_NAME = 'crown-stone-db';
+const IDB_STORE = 'kv';
+let idbOpenPromise = null;
+
+function openIDB(){
+  if(idbOpenPromise) return idbOpenPromise;
+  idbOpenPromise = new Promise((resolve) => {
+    if(!window.indexedDB){ resolve(null); return; }
+    try{
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = () => {
+        if(!req.result.objectStoreNames.contains(IDB_STORE)){
+          req.result.createObjectStore(IDB_STORE);
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    }catch(e){ resolve(null); }
+  });
+  return idbOpenPromise;
+}
+
+async function idbGet(key){
+  const db = await openIDB();
+  if(!db) return undefined;
+  return new Promise((resolve) => {
+    try{
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(key);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(undefined);
+    }catch(e){ resolve(undefined); }
+  });
+}
+
+async function idbSet(key, value){
+  const db = await openIDB();
+  if(!db) return false;
+  return new Promise((resolve) => {
+    try{
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put(value, key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    }catch(e){ resolve(false); }
+  });
+}
+
+// Ask the browser not to silently evict this data under storage pressure.
+if(navigator.storage && navigator.storage.persist){
+  try{ navigator.storage.persist(); }catch(e){}
+}
+
 const storageAdapter = {
   async get(key){
     if(window.storage && window.storage.get){
       try{ return await window.storage.get(key); }catch(e){}
     }
     try{
-      const v = localStorage.getItem(key);
-      return v !== null ? { value: v } : null;
-    }catch(e){ return null; }
+      const idbVal = await idbGet(key);
+      if(idbVal !== undefined) return { value: idbVal };
+    }catch(e){}
+    // migration path: nothing in IndexedDB yet — check localStorage for
+    // pre-existing data from before this upgrade, and copy it over.
+    try{
+      const lsVal = localStorage.getItem(key);
+      if(lsVal !== null){
+        idbSet(key, lsVal).catch(() => {});
+        return { value: lsVal };
+      }
+    }catch(e){}
+    return null;
   },
   async set(key, value){
     if(window.storage && window.storage.set){
       try{ return await window.storage.set(key, value); }catch(e){}
     }
+    try{
+      const ok = await idbSet(key, value);
+      if(ok) return { value };
+    }catch(e){}
     try{ localStorage.setItem(key, value); return { value }; }catch(e){ return null; }
   }
 };
