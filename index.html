@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Crown & Stone — Show Board</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1200,7 +1202,7 @@
 
 <div id="appRoot" class="app-hidden">
 <div class="save-error-banner" id="saveErrorBanner" style="display:none;">
-  ⚠ Your last change couldn't be saved — your device's storage is likely full. <strong>Tap Export now</strong> to back up your catalog before doing anything else, then free up space (delete a few uploaded photos) to keep editing safely.
+  <span id="saveErrorText">⚠ Couldn't sync this change to the shared database. It's saved on this device only for now — check your internet connection. It'll sync automatically once you're back online.</span>
   <button class="save-error-dismiss" id="saveErrorDismiss">✕</button>
 </div>
 <div class="hero">
@@ -1519,21 +1521,130 @@ if(navigator.storage && navigator.storage.persist){
   try{ navigator.storage.persist(); }catch(e){}
 }
 
+// --- Firebase (real shared/live storage) -----------------------------
+// Firestore has a 1MB-per-document limit, and our catalog (with uploaded
+// photos) can exceed that, so large values get split into chunks across
+// multiple small documents and reassembled on read.
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCrWHwIny3biyWyG4e0C9ELi5NSogs_FBo",
+  authDomain: "crownstone-a8412.firebaseapp.com",
+  projectId: "crownstone-a8412",
+  storageBucket: "crownstone-a8412.firebasestorage.app",
+  messagingSenderId: "144781109627",
+  appId: "1:144781109627:web:23c9f9dd86b31d0d11b5de"
+};
+const FS_COLLECTION = 'crownstone_state';
+const FS_CHUNK_SIZE = 700000; // chars — safely under Firestore's 1MB doc cap
+
+let fbDb = null;
+function initFirebase(){
+  if(fbDb) return fbDb;
+  try{
+    if(typeof firebase === 'undefined') return null;
+    const app = firebase.apps && firebase.apps.length ? firebase.apps[0] : firebase.initializeApp(FIREBASE_CONFIG);
+    fbDb = firebase.firestore(app);
+    return fbDb;
+  }catch(e){ return null; }
+}
+
+async function fsSet(key, value){
+  const db = initFirebase();
+  if(!db) return false;
+  try{
+    const chunks = [];
+    for(let i = 0; i < value.length; i += FS_CHUNK_SIZE){
+      chunks.push(value.slice(i, i + FS_CHUNK_SIZE));
+    }
+    const batch = db.batch();
+    batch.set(db.collection(FS_COLLECTION).doc(key + '_meta'), {
+      chunkCount: chunks.length,
+      updatedAt: Date.now(),
+      updatedBy: clientInstanceId
+    });
+    chunks.forEach((chunk, i) => {
+      batch.set(db.collection(FS_COLLECTION).doc(`${key}_chunk_${i}`), { data: chunk });
+    });
+    await batch.commit();
+    cleanupOldChunks(key, chunks.length).catch(() => {});
+    return true;
+  }catch(e){ return false; }
+}
+
+async function cleanupOldChunks(key, newCount){
+  const db = initFirebase();
+  if(!db) return;
+  for(let i = newCount; i < newCount + 30; i++){
+    try{
+      const ref = db.collection(FS_COLLECTION).doc(`${key}_chunk_${i}`);
+      const snap = await ref.get();
+      if(!snap.exists) break;
+      await ref.delete();
+    }catch(e){ break; }
+  }
+}
+
+async function fsGet(key){
+  const db = initFirebase();
+  if(!db) return undefined;
+  try{
+    const metaSnap = await db.collection(FS_COLLECTION).doc(key + '_meta').get();
+    if(!metaSnap.exists) return undefined;
+    const { chunkCount } = metaSnap.data();
+    const snaps = await Promise.all(
+      Array.from({ length: chunkCount }, (_, i) => db.collection(FS_COLLECTION).doc(`${key}_chunk_${i}`).get())
+    );
+    let result = '';
+    for(const snap of snaps){
+      if(!snap.exists) return undefined;
+      result += snap.data().data;
+    }
+    return result;
+  }catch(e){ return undefined; }
+}
+
+// unique per browser tab, so we can tell our own writes apart from a
+// teammate's when the live listener fires
+const clientInstanceId = 'client-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+let liveListenerUnsub = null;
+let onRemoteUpdate = null; // set later, once loadState/renderGrid exist
+
+function startLiveListener(key){
+  const db = initFirebase();
+  if(!db || liveListenerUnsub) return;
+  try{
+    liveListenerUnsub = db.collection(FS_COLLECTION).doc(key + '_meta')
+      .onSnapshot((snap) => {
+        if(!snap.exists) return;
+        const data = snap.data();
+        if(data.updatedBy === clientInstanceId) return; // our own write, ignore
+        if(typeof onRemoteUpdate === 'function') onRemoteUpdate();
+      });
+  }catch(e){}
+}
+
 const storageAdapter = {
   async get(key){
     if(window.storage && window.storage.get){
       try{ return await window.storage.get(key); }catch(e){}
     }
     try{
+      const fsVal = await fsGet(key);
+      if(fsVal !== undefined){
+        idbSet(key, fsVal).catch(() => {}); // keep a local offline copy too
+        return { value: fsVal };
+      }
+    }catch(e){}
+    try{
       const idbVal = await idbGet(key);
       if(idbVal !== undefined) return { value: idbVal };
     }catch(e){}
-    // migration path: nothing in IndexedDB yet — check localStorage for
-    // pre-existing data from before this upgrade, and copy it over.
+    // migration path: nothing synced yet — check localStorage for
+    // pre-existing data from before this upgrade, and copy it forward.
     try{
       const lsVal = localStorage.getItem(key);
       if(lsVal !== null){
         idbSet(key, lsVal).catch(() => {});
+        fsSet(key, lsVal).catch(() => {});
         return { value: lsVal };
       }
     }catch(e){}
@@ -1543,11 +1654,17 @@ const storageAdapter = {
     if(window.storage && window.storage.set){
       try{ return await window.storage.set(key, value); }catch(e){}
     }
+    idbSet(key, value).catch(() => {}); // always keep a local offline copy
     try{
-      const ok = await idbSet(key, value);
+      const ok = await fsSet(key, value);
       if(ok) return { value };
     }catch(e){}
-    try{ localStorage.setItem(key, value); return { value }; }catch(e){ return null; }
+    // Firestore unreachable (offline etc.) — at least keep the local copy
+    // safe, and be honest with saveState() that the *shared* save failed.
+    try{
+      localStorage.setItem(key, value);
+    }catch(e){}
+    return null;
   }
 };
 
@@ -3013,6 +3130,30 @@ async function unlockApp(){
   await loadState();
   initItems();
   renderGrid();
+
+  // Real-time sync: when a teammate saves a change elsewhere, pull it in
+  // and refresh automatically, without needing a manual reload.
+  onRemoteUpdate = async () => {
+    await loadState();
+    initItems();
+    renderGrid();
+    renderSalesSheet();
+    updateLiveBanner();
+    flashSyncedIndicator();
+  };
+  startLiveListener(STORAGE_KEY);
+}
+
+function flashSyncedIndicator(){
+  const el = document.getElementById('savedIndicator');
+  if(!el) return;
+  el.textContent = '↻ Synced from teammate';
+  el.classList.add('show');
+  clearTimeout(saveToastTimer);
+  saveToastTimer = setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => { el.textContent = '✓ Saved'; }, 250);
+  }, 1600);
 }
 
 function wireLockScreen(){
