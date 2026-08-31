@@ -2000,6 +2000,7 @@ function renderGrid(){
         </div>
         <div class="card-body">
           <div class="card-name" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="name">${escapeHtml(it.name)}</div>
+          <div class="card-sku">SKU ${escapeHtml(it.sku)}</div>
           <div class="card-specs">
             <span class="spec-tag" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="length">${escapeHtml(it.length || 'Add length')}</span>
             <span class="spec-tag" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="width">${escapeHtml(it.width || 'Add width')}</span>
@@ -2245,7 +2246,7 @@ function renderFocus(){
   document.getElementById('focusImg').src = it.image;
   document.getElementById('focusHeroBadge').style.display = it.isHero ? 'inline-block' : 'none';
   document.getElementById('focusRunningBadge').style.display = (liveModeActive && currentRunningId === it.id) ? 'inline-flex' : 'none';
-  document.getElementById('focusSku').textContent = `No. ${String(it.num).padStart(2,'0')}`;
+  document.getElementById('focusSku').textContent = `No. ${String(it.num).padStart(2,'0')} · SKU ${it.sku}`;
   document.getElementById('focusName').textContent = it.name;
   const specParts = [];
   if(it.length) specParts.push(`<span class="focus-spec-tag">${escapeHtml(it.length)}</span>`);
