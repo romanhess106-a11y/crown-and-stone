@@ -1332,7 +1332,6 @@
           </button>
         </div>
         <div class="focus-name" id="focusName"></div>
-        <div class="focus-specs" id="focusSpecs"></div>
         <div class="focus-price-row">
           <div class="focus-price" id="focusPrice"></div>
         </div>
@@ -2077,11 +2076,6 @@ function renderGrid(){
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
           </button></div>
           <div class="card-name" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="name">${escapeHtml(it.name)}</div>
-          <div class="card-specs">
-            <span class="spec-tag" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="length">${escapeHtml(it.length || 'Add length')}</span>
-            <span class="spec-tag" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="width">${escapeHtml(it.width || 'Add width')}</span>
-            <span class="spec-tag material" contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="material">${escapeHtml(it.material || 'Add material')}</span>
-          </div>
         </div>
         <div class="col-cost"><span class="col-label">Cost</span><span class="col-value">$<span contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="price">${escapeHtml(it.price)}</span></span></div>
         <div class="col-retail"><span class="col-label">Retail</span><span class="col-value">$<span contenteditable="${it.locked || selectMode ? 'false' : 'true'}" spellcheck="false" data-id="${it.id}" data-field="retailPrice">${escapeHtml(it.retailPrice || '—')}</span></span></div>
@@ -2348,11 +2342,6 @@ function renderFocus(){
   document.getElementById('focusSku').textContent = `No. ${String(it.num).padStart(2,'0')} · SKU ${it.sku}`;
   document.getElementById('focusSkuCopy').setAttribute('data-sku', it.sku);
   document.getElementById('focusName').textContent = it.name;
-  const specParts = [];
-  if(it.length) specParts.push(`<span class="focus-spec-tag">${escapeHtml(it.length)}</span>`);
-  if(it.width) specParts.push(`<span class="focus-spec-tag">${escapeHtml(it.width)}</span>`);
-  if(it.material) specParts.push(`<span class="focus-spec-tag material">${escapeHtml(it.material)}</span>`);
-  document.getElementById('focusSpecs').innerHTML = specParts.join('');
   document.getElementById('focusPrice').textContent = '$' + it.price;
   document.getElementById('qtyValue').textContent = it.qty;
   document.getElementById('focusSoldCount').textContent = (it.soldEvents && it.soldEvents.length) || 0;
