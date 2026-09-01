@@ -167,6 +167,14 @@
   .corner-actions .add-item-btn{
     font-size:11px; padding:7px 13px;
   }
+  .save-now-btn{
+    background:var(--good); color:#fff; border:none;
+    font-family:var(--mono); font-weight:700; font-size:11px; letter-spacing:0.03em;
+    padding:7px 14px; border-radius:999px; cursor:pointer; white-space:nowrap;
+    transition:all .15s ease;
+  }
+  .save-now-btn:hover{filter:brightness(1.1); transform:translateY(-1px);}
+  .save-now-btn.saving{opacity:0.6; pointer-events:none;}
   .corner-actions .overflow-btn{
     width:30px; height:30px; font-size:15px;
   }
@@ -1253,6 +1261,7 @@
   <div class="corner-actions">
     <button class="export-btn" id="exportBtn" title="Download your current list as a file to send back to Claude">⬇ Export</button>
     <button class="sales-sheet-btn" id="salesSheetBtn" style="display:none;">📋 Sales Sheet</button>
+    <button class="save-now-btn" id="saveNowBtn" title="Force an immediate save of everything right now">💾 Save Now</button>
     <button class="add-item-btn" id="addItemBtn">+ Add Item</button>
     <div class="overflow-wrap">
       <button class="overflow-btn" id="overflowBtn" title="More options" aria-label="More options">⋯</button>
@@ -1799,6 +1808,45 @@ async function saveState(){
   }
 }
 
+// Guarantees only one save is ever in flight at a time, and that whichever
+// save actually runs reflects the LATEST state — not a stale snapshot from
+// an earlier edit. Without this, rapid successive edits could each start
+// their own save, and an older one finishing after a newer one would
+// silently overwrite it (exactly the "only one edit sticks" bug).
+let saveInProgress = false;
+let saveQueuedAgain = false;
+
+async function scheduleSave(){
+  if(saveInProgress){
+    saveQueuedAgain = true; // an edit landed while a save was mid-flight — redo it once this one finishes
+    return;
+  }
+  saveInProgress = true;
+  await saveState();
+  saveInProgress = false;
+  if(saveQueuedAgain){
+    saveQueuedAgain = false;
+    scheduleSave();
+  }
+}
+
+// Used by the manual "Save Now" button: waits for any save already in
+// flight to finish (so it never races it), then does one more save to
+// guarantee the very latest edits are flushed, and reports success/failure.
+async function forceSaveNow(){
+  while(saveInProgress){
+    await new Promise(r => setTimeout(r, 100));
+  }
+  saveInProgress = true;
+  const ok = await saveState();
+  saveInProgress = false;
+  if(saveQueuedAgain){
+    saveQueuedAgain = false;
+    scheduleSave();
+  }
+  return ok;
+}
+
 let saveToastTimer = null;
 function flashSavedIndicator(){
   const el = document.getElementById('savedIndicator');
@@ -1998,7 +2046,7 @@ async function performArchiveDelete(){
   pendingArchiveDeleteIdx = null;
   closeArchiveDetail();
   renderArchiveList();
-  saveState();
+  scheduleSave();
 }
 
 function openArchiveOverlay(){
@@ -2081,7 +2129,7 @@ async function setLiveActive(active, customStartDate){
     state.sessionLog = [];
     state.sessionStartedAt = customStartDate || new Date().toISOString();
     renderSalesSheet();
-    saveState();
+    scheduleSave();
   } else {
     startBtn.style.display = 'inline-block';
     endBtn.style.display = 'none';
@@ -2100,7 +2148,7 @@ async function setLiveActive(active, customStartDate){
       // keep the archive from growing without bound
       if(state.sessionArchive.length > 30) state.sessionArchive = state.sessionArchive.slice(0, 30);
       showSessionEndedModal(log.length, total);
-      saveState();
+      scheduleSave();
     } else {
       showSessionEndedModal(0, 0);
     }
@@ -2159,7 +2207,7 @@ async function unlockItem(id){
   }
   renderGrid();
   renderSalesSheet();
-  saveState();
+  scheduleSave();
 }
 
 let pendingUploadId = null;
@@ -2206,7 +2254,7 @@ async function applyUploadedImage(id, dataUrl){
     focusItem.image = dataUrl;
     document.getElementById('focusImg').src = dataUrl;
   }
-  saveState();
+  scheduleSave();
 }
 
 function getOriginalImage(id){
@@ -2235,7 +2283,7 @@ async function revertPhoto(id){
     focusItem.image = original;
     document.getElementById('focusImg').src = original;
   }
-  saveState();
+  scheduleSave();
 }
 
 function renderPhotoManager(){
@@ -2290,7 +2338,7 @@ async function revertAllPhotos(){
   }
   renderGrid();
   renderPhotoManager();
-  saveState();
+  scheduleSave();
 }
 
 document.getElementById('imageUploadInput').addEventListener('change', async (e) => {
@@ -2401,7 +2449,7 @@ async function submitNewItem(){
   items.splice(position - 1, 0, newItem);
   items.forEach((it,i) => it.num = i + 1);
   state.order = items.map(it => it.id);
-  saveState();
+  scheduleSave();
 
   closeNewItemModal();
 
@@ -2454,7 +2502,7 @@ async function duplicateItem(id){
   items.forEach((it,i) => it.num = i + 1);
   state.order = items.map(it => it.id);
   renderGrid();
-  saveState();
+  scheduleSave();
 }
 
 async function deleteItem(id){
@@ -2466,7 +2514,7 @@ async function deleteItem(id){
   items.forEach((it,i) => it.num = i + 1);
   renderGrid();
   showUndoToast(it.name);
-  saveState();
+  scheduleSave();
 }
 
 function showUndoToast(name){
@@ -2487,7 +2535,7 @@ async function undoDelete(){
   lastDeleted = null;
   document.getElementById('undoToast').classList.remove('show');
   renderGrid();
-  saveState();
+  scheduleSave();
 }
 
 function applyFilters(){
@@ -2761,14 +2809,14 @@ async function reorderItems(fromId, toId){
   items.forEach((it, i) => it.num = i + 1);
   state.order = items.map(it => it.id);
   renderGrid();
-  saveState();
+  scheduleSave();
 }
 
 async function resetOrder(){
   state.order = null;
   initItems();
   renderGrid();
-  saveState();
+  scheduleSave();
 }
 
 async function commitEdit(el){
@@ -2827,7 +2875,7 @@ async function commitEdit(el){
   if(field === 'qty'){
     updateTabCounts(); // cheap array scan, unlike a full grid rebuild
   }
-  saveState(); // runs in the background; doesn't block the UI while it syncs
+  scheduleSave(); // queued — safe even if another edit is mid-save
 }
 
 function updateCardDerived(id, field, it){
@@ -2853,7 +2901,7 @@ async function moveItemToPosition(id, targetNum){
   items.forEach((it, i) => it.num = i + 1);
   state.order = items.map(it => it.id);
   renderGrid();
-  saveState();
+  scheduleSave();
 }
 
 function escapeHtml(str){
@@ -2941,7 +2989,7 @@ async function confirmItemSold(){
   renderGrid();
   updateLiveBanner();
   renderSalesSheet();
-  saveState();
+  scheduleSave();
 }
 
 async function updateQty(delta){
@@ -2953,7 +3001,7 @@ async function updateQty(delta){
   state.overlay[it.id] = { ...(state.overlay[it.id]||{}), qty: it.qty };
   renderFocus();
   renderGrid();
-  saveState();
+  scheduleSave();
 }
 
 async function toggleSold(){
@@ -2965,7 +3013,7 @@ async function toggleSold(){
   state.overlay[it.id] = { ...(state.overlay[it.id]||{}), sold: it.sold };
   renderFocus();
   renderGrid();
-  saveState();
+  scheduleSave();
 }
 
 function navFocus(delta){
@@ -3053,7 +3101,7 @@ async function performBulkDelete(){
   selectedIds = new Set();
   updateBulkBar();
   renderGrid();
-  saveState();
+  scheduleSave();
 }
 
 function openBulkConfirmModal(){
@@ -3149,7 +3197,7 @@ async function saveNote(){
   const srcItem = items.find(x => x.id === it.id);
   if(srcItem) srcItem.note = value;
   state.overlay[it.id] = { ...(state.overlay[it.id]||{}), note: value };
-  await saveState();
+  scheduleSave();
 }
 
 function pad2(n){ return String(n).padStart(2, '0'); }
@@ -3206,6 +3254,16 @@ document.getElementById('salesSheetOverlay').addEventListener('click', (e) => {
 document.getElementById('archiveBtn').addEventListener('click', () => {
   openArchiveOverlay();
 });
+document.getElementById('saveNowBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('saveNowBtn');
+  btn.classList.add('saving');
+  btn.textContent = 'Saving…';
+  const ok = await forceSaveNow();
+  btn.classList.remove('saving');
+  btn.textContent = ok ? '✓ Saved' : '⚠ Failed';
+  setTimeout(() => { btn.textContent = '💾 Save Now'; }, 1500);
+});
+
 document.getElementById('addItemBtn').addEventListener('click', () => {
   openNewItemModal();
 });
