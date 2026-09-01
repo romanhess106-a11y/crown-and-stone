@@ -1260,6 +1260,7 @@
 <div class="hero">
   <div class="corner-actions">
     <button class="export-btn" id="exportBtn" title="Download your current list as a file to send back to Claude">⬇ Export</button>
+    <button class="export-btn" id="fullBackupBtn" title="Download a complete backup, including all your photos, that you control">📦 Full Backup</button>
     <button class="sales-sheet-btn" id="salesSheetBtn" style="display:none;">📋 Sales Sheet</button>
     <button class="save-now-btn" id="saveNowBtn" title="Force an immediate save of everything right now">💾 Save Now</button>
     <button class="add-item-btn" id="addItemBtn">+ Add Item</button>
@@ -3382,6 +3383,53 @@ document.getElementById('exportBtn').addEventListener('click', () => {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+});
+
+document.getElementById('fullBackupBtn').addEventListener('click', () => {
+  // A complete, self-contained backup — every field AND every photo,
+  // exactly as currently shown. This file is yours; it doesn't depend on
+  // this app, this database, or me. If anything is ever lost again, this
+  // is what actually gets it back.
+  const btn = document.getElementById('fullBackupBtn');
+  const originalText = btn.textContent;
+  btn.textContent = 'Building…';
+  btn.disabled = true;
+
+  setTimeout(() => {
+    const fullData = items.map(it => ({
+      num: it.num,
+      id: it.id,
+      sku: it.sku,
+      name: it.name,
+      variant: it.variant,
+      material: it.material,
+      length: it.length,
+      width: it.width,
+      price: it.price,
+      priceDiscount: it.priceDiscount,
+      retailPrice: it.retailPrice,
+      qty: it.qty,
+      sold: it.sold,
+      category: it.category,
+      style: it.style,
+      isHero: it.isHero,
+      note: it.note,
+      image: it.image // the actual photo data — included this time
+    }));
+    const blob = new Blob([JSON.stringify(fullData)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const dateStr = new Date().toISOString().slice(0,10);
+    a.href = url;
+    a.download = `crown-and-stone-FULL-BACKUP-${dateStr}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }, 50);
 });
 
 document.getElementById('undoBtn').addEventListener('click', undoDelete);
