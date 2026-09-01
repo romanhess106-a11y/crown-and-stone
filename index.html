@@ -1799,6 +1799,68 @@ async function loadState(){
     }
   }catch(e){ state = { overlay: {}, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [], sessionStartedAt: null }; }
 }
+// Photos are stored SEPARATELY from the rest of the catalog data (see
+// saveItemPhoto/loadAllPhotos below) so that editing a price or name
+// doesn't re-upload every uploaded photo in the catalog every single time
+// — that repeated large upload was the real cause of "saving is slow."
+function buildSlimState(){
+  const slim = { ...state, overlay: {}, duplicates: {} };
+  for(const id in state.overlay){
+    const { image, ...rest } = state.overlay[id];
+    if(image !== undefined) rest.hasCustomImage = true; // marker: fetch this item's photo separately on load
+    slim.overlay[id] = rest;
+  }
+  for(const id in (state.duplicates || {})){
+    const { image, ...rest } = state.duplicates[id];
+    slim.duplicates[id] = rest; // new/duplicated items always need their photo fetched separately too
+  }
+  return slim;
+}
+
+function photoStorageKey(id){ return `${STORAGE_KEY}_photo_${id}`; }
+
+async function saveItemPhoto(id, dataUrl){
+  const key = photoStorageKey(id);
+  idbSet(key, dataUrl).catch(() => {});
+  try{ await fsSet(key, dataUrl); }catch(e){}
+}
+
+async function loadItemPhoto(id){
+  const key = photoStorageKey(id);
+  try{
+    const fsVal = await fsGet(key);
+    if(fsVal !== undefined){ idbSet(key, fsVal).catch(() => {}); return fsVal; }
+  }catch(e){}
+  try{
+    const idbVal = await idbGet(key);
+    if(idbVal !== undefined) return idbVal;
+  }catch(e){}
+  return null;
+}
+
+// After loading the slim (photo-free) state, fetch every item's separately
+// stored photo in parallel and merge it back in — so the rest of the app
+// (initItems, rendering) works exactly as before, unaware of the split.
+async function mergePhotosIntoState(){
+  const idsNeedingPhotos = new Set();
+  for(const id in state.overlay){
+    if(state.overlay[id].hasCustomImage) idsNeedingPhotos.add(id);
+  }
+  for(const id in (state.duplicates || {})){
+    idsNeedingPhotos.add(id);
+  }
+  await Promise.all([...idsNeedingPhotos].map(async (id) => {
+    const dataUrl = await loadItemPhoto(id);
+    if(!dataUrl) return;
+    if(state.duplicates && state.duplicates[id]){
+      state.duplicates[id].image = dataUrl;
+    }
+    if(state.overlay[id]){
+      state.overlay[id].image = dataUrl;
+    }
+  }));
+}
+
 async function saveState(){
   // Suppress the live listener from reacting to our own writes for a
   // short window — this is a defense-in-depth against a race where a
@@ -1806,7 +1868,7 @@ async function saveState(){
   // "echo" of our own save arriving back through the sync listener.
   recentLocalWriteUntil = Date.now() + 4000;
   try{
-    const result = await storageAdapter.set(STORAGE_KEY, JSON.stringify(state));
+    const result = await storageAdapter.set(STORAGE_KEY, JSON.stringify(buildSlimState()));
     if(!result){
       showSaveErrorBanner();
       return false;
@@ -2268,7 +2330,8 @@ async function applyUploadedImage(id, dataUrl){
     focusItem.image = dataUrl;
     document.getElementById('focusImg').src = dataUrl;
   }
-  scheduleSave();
+  scheduleSave(); // fast — the photo itself is synced separately below, not in this payload
+  saveItemPhoto(id, dataUrl); // the actual (larger) photo upload, independent of other edits
 }
 
 function getOriginalImage(id){
@@ -2289,6 +2352,7 @@ async function revertPhoto(id){
   if(state.overlay[id]){
     const updated = { ...state.overlay[id] };
     delete updated.image;
+    delete updated.hasCustomImage;
     state.overlay[id] = updated;
   }
   renderGrid();
@@ -2298,6 +2362,7 @@ async function revertPhoto(id){
     document.getElementById('focusImg').src = original;
   }
   scheduleSave();
+  saveItemPhoto(id, ''); // clear the separately-stored photo too
 }
 
 function renderPhotoManager(){
@@ -2339,6 +2404,7 @@ function renderPhotoManager(){
 
 async function revertAllPhotos(){
   const customItems = items.filter(it => it.hasCustomImage);
+  const revertedIds = [];
   for(const it of customItems){
     const original = getOriginalImage(it.id);
     if(!original) continue;
@@ -2347,12 +2413,15 @@ async function revertAllPhotos(){
     if(state.overlay[it.id]){
       const updated = { ...state.overlay[it.id] };
       delete updated.image;
+      delete updated.hasCustomImage;
       state.overlay[it.id] = updated;
     }
+    revertedIds.push(it.id);
   }
   renderGrid();
   renderPhotoManager();
   scheduleSave();
+  revertedIds.forEach(id => saveItemPhoto(id, ''));
 }
 
 document.getElementById('imageUploadInput').addEventListener('change', async (e) => {
@@ -2464,6 +2533,7 @@ async function submitNewItem(){
   items.forEach((it,i) => it.num = i + 1);
   state.order = items.map(it => it.id);
   scheduleSave();
+  saveItemPhoto(newId, newBase.image); // the item's photo, synced separately (fast, small)
 
   closeNewItemModal();
 
@@ -2517,6 +2587,7 @@ async function duplicateItem(id){
   state.order = items.map(it => it.id);
   renderGrid();
   scheduleSave();
+  saveItemPhoto(newId, newBase.image);
 }
 
 async function deleteItem(id){
@@ -3371,6 +3442,7 @@ async function unlockApp(){
   document.getElementById('lockScreen').style.display = 'none';
   document.getElementById('appRoot').classList.remove('app-hidden');
   await loadState();
+  await mergePhotosIntoState();
   initItems();
   renderGrid();
 
@@ -3378,6 +3450,7 @@ async function unlockApp(){
   // and refresh automatically, without needing a manual reload.
   onRemoteUpdate = async () => {
     await loadState();
+    await mergePhotosIntoState();
     initItems();
     renderGrid();
     renderSalesSheet();
