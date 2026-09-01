@@ -2821,10 +2821,27 @@ async function commitEdit(el){
   if(field === 'width' && value === ''){
     el.textContent = 'Add width';
   }
-  if(field === 'qty' || field === 'retailPrice' || field === 'sku'){
-    renderGrid(); // refresh derived columns / copy-button data-sku — instant, doesn't wait on the save
+  if(field === 'qty' || field === 'sku'){
+    updateCardDerived(id, field, it); // targeted update — avoids rebuilding the entire list for one field
+  }
+  if(field === 'qty'){
+    updateTabCounts(); // cheap array scan, unlike a full grid rebuild
   }
   saveState(); // runs in the background; doesn't block the UI while it syncs
+}
+
+function updateCardDerived(id, field, it){
+  const card = document.querySelector(`.card[data-id="${id}"]`);
+  if(!card) return;
+  if(field === 'qty'){
+    const leftLow = !it.locked && it.qty > 0 && it.qty <= 5;
+    const leftEl = card.querySelector('.col-left');
+    if(leftEl) leftEl.classList.toggle('low', leftLow);
+  }
+  if(field === 'sku'){
+    const copyBtn = card.querySelector('.sku-copy-btn');
+    if(copyBtn) copyBtn.setAttribute('data-sku', it.sku);
+  }
 }
 
 async function moveItemToPosition(id, targetNum){
