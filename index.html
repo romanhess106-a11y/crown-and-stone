@@ -322,6 +322,49 @@
     flex:1;
   }
   .confirm-modal-cancel:hover{border-color:var(--danger); color:var(--danger);}
+
+  .new-item-modal{
+    background:var(--panel); border-radius:20px; overflow:hidden;
+    max-width:520px; width:100%; max-height:88vh; overflow-y:auto;
+    box-shadow:0 40px 100px rgba(43,38,32,0.22);
+  }
+  .new-item-header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 24px 4px;
+  }
+  .new-item-body{padding:8px 24px 4px; display:flex; flex-direction:column; gap:16px;}
+  .new-item-photo-wrap{
+    width:100%; aspect-ratio:16/9; border-radius:14px; overflow:hidden;
+    background:var(--panel-2); border:1.5px dashed var(--hairline);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    transition:all .15s ease;
+  }
+  .new-item-photo-wrap:hover{border-color:var(--gold);}
+  .new-item-photo-wrap img{width:100%; height:100%; object-fit:cover;}
+  .new-item-photo-placeholder{
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+    color:var(--cream-dim); font-family:var(--sans); font-size:13px;
+  }
+  .new-item-photo-placeholder svg{width:32px; height:32px;}
+  .new-item-fields{display:flex; flex-direction:column; gap:14px;}
+  .new-item-label{
+    display:flex; flex-direction:column; gap:6px;
+    font-family:var(--mono); font-size:10.5px; font-weight:700; letter-spacing:0.06em;
+    text-transform:uppercase; color:var(--cream-dim);
+  }
+  .new-item-label input{
+    font-family:var(--sans); font-size:15px; color:var(--cream); font-weight:400;
+    background:var(--panel-2); border:1px solid var(--hairline); border-radius:10px;
+    padding:11px 14px; outline:none; text-transform:none; letter-spacing:normal;
+    transition:border-color .15s ease;
+  }
+  .new-item-label input:focus{border-color:var(--gold);}
+  .new-item-row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;}
+  .new-item-footer{
+    display:flex; gap:12px; padding:18px 24px 24px;
+  }
+  .new-item-footer .confirm-modal-cancel{flex:1;}
+  .new-item-footer .confirm-modal-yes{flex:2;}
   @media (max-width:640px){
     .confirm-modal{flex-direction:column; max-width:420px;}
     .confirm-modal-img-wrap{width:100%; aspect-ratio:1/1;}
@@ -1189,6 +1232,7 @@
 <body>
 
 <input type="file" id="imageUploadInput" accept="image/*" style="display:none;">
+<input type="file" id="newItemPhotoInput" accept="image/*" style="display:none;">
 
 <div class="lock-screen" id="lockScreen">
   <div class="lock-card">
@@ -1282,6 +1326,47 @@
     </div>
     <div class="photo-manager-footer" id="photoManagerFooter" style="display:none;">
       <button class="bulk-delete-btn" id="revertAllPhotosBtn">Revert All to Original Photos</button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-modal-overlay" id="newItemOverlay" style="display:none;">
+  <div class="new-item-modal">
+    <div class="new-item-header">
+      <div class="confirm-modal-label">New Item</div>
+      <button class="focus-close" id="newItemClose">✕</button>
+    </div>
+    <div class="new-item-body">
+      <div class="new-item-photo-wrap" id="newItemPhotoWrap">
+        <img id="newItemPhotoPreview" src="" alt="" style="display:none;">
+        <div class="new-item-photo-placeholder" id="newItemPhotoPlaceholder">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+          <span>Tap to add photo</span>
+        </div>
+      </div>
+      <div class="new-item-fields">
+        <label class="new-item-label">Insert at Lot #
+          <input type="number" id="newItemPosition" min="1" value="1">
+        </label>
+        <label class="new-item-label">Item Name
+          <input type="text" id="newItemName" placeholder="e.g. Titanium Steel Cuban Bracelet">
+        </label>
+        <div class="new-item-row3">
+          <label class="new-item-label">Cost
+            <input type="text" id="newItemCost" placeholder="0.00" inputmode="decimal">
+          </label>
+          <label class="new-item-label">Retail
+            <input type="text" id="newItemRetail" placeholder="0.00" inputmode="decimal">
+          </label>
+          <label class="new-item-label">Stock
+            <input type="number" id="newItemStock" placeholder="0" min="0">
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="new-item-footer">
+      <button class="confirm-modal-cancel" id="newItemCancel">Cancel</button>
+      <button class="confirm-modal-yes" id="newItemSubmit">+ Add Item</button>
     </div>
   </div>
 </div>
@@ -2258,17 +2343,46 @@ function makePlaceholderImage(){
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
 }
 
-async function addNewItem(){
+let newItemPhotoDataUrl = null;
+
+function openNewItemModal(){
+  newItemPhotoDataUrl = null;
+  document.getElementById('newItemPhotoPreview').style.display = 'none';
+  document.getElementById('newItemPhotoPreview').src = '';
+  document.getElementById('newItemPhotoPlaceholder').style.display = 'flex';
+  document.getElementById('newItemPosition').value = 1;
+  document.getElementById('newItemPosition').max = items.length + 1;
+  document.getElementById('newItemName').value = '';
+  document.getElementById('newItemCost').value = '';
+  document.getElementById('newItemRetail').value = '';
+  document.getElementById('newItemStock').value = '';
+  document.getElementById('newItemOverlay').style.display = 'flex';
+  document.getElementById('newItemName').focus();
+}
+function closeNewItemModal(){
+  document.getElementById('newItemOverlay').style.display = 'none';
+}
+
+async function submitNewItem(){
   const newId = 'new-' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+  const name = document.getElementById('newItemName').value.trim() || 'New Item — tap to rename';
+  const cost = document.getElementById('newItemCost').value.trim();
+  const retail = document.getElementById('newItemRetail').value.trim();
+  const stockRaw = document.getElementById('newItemStock').value.trim();
+  const stock = stockRaw === '' ? 0 : Math.max(0, parseInt(stockRaw, 10) || 0);
+  let position = parseInt(document.getElementById('newItemPosition').value, 10);
+  if(isNaN(position) || position < 1) position = 1;
+  if(position > items.length + 1) position = items.length + 1;
+
   const newBase = {
     id: newId,
     sku: 'NEW-' + newId.slice(-6).toUpperCase(),
     variant: '',
-    name: 'New Item — tap to rename',
-    qty: 0,
-    price: '0.00',
+    name,
+    qty: stock,
+    price: cost === '' ? '0.00' : (parseFloat(cost.replace(/[^0-9.]/g,'')) || 0).toFixed(2),
     priceDiscount: '0.00',
-    image: makePlaceholderImage(),
+    image: newItemPhotoDataUrl || makePlaceholderImage(),
     material: '',
     length: '',
     width: '',
@@ -2279,11 +2393,17 @@ async function addNewItem(){
   state.duplicates = state.duplicates || {};
   state.duplicates[newId] = newBase;
 
-  const newItem = { ...newBase, sold: false, note: '', locked: false, soldEvents: [], retailPrice: '' };
-  items.unshift(newItem);
+  const newItem = {
+    ...newBase,
+    sold: false, note: '', locked: false, soldEvents: [],
+    retailPrice: retail === '' ? '' : (parseFloat(retail.replace(/[^0-9.]/g,'')) || 0).toFixed(2)
+  };
+  items.splice(position - 1, 0, newItem);
   items.forEach((it,i) => it.num = i + 1);
   state.order = items.map(it => it.id);
   await saveState();
+
+  closeNewItemModal();
 
   // reset filters so the new item is guaranteed visible right after creation
   currentFilter = 'all';
@@ -3070,8 +3190,35 @@ document.getElementById('archiveBtn').addEventListener('click', () => {
   openArchiveOverlay();
 });
 document.getElementById('addItemBtn').addEventListener('click', () => {
-  addNewItem();
+  openNewItemModal();
 });
+document.getElementById('newItemClose').addEventListener('click', closeNewItemModal);
+document.getElementById('newItemCancel').addEventListener('click', closeNewItemModal);
+document.getElementById('newItemOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'newItemOverlay') closeNewItemModal();
+});
+document.getElementById('newItemSubmit').addEventListener('click', () => {
+  submitNewItem();
+});
+document.getElementById('newItemPhotoWrap').addEventListener('click', () => {
+  document.getElementById('newItemPhotoInput').click();
+});
+document.getElementById('newItemPhotoInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  try{
+    const dataUrl = await processUploadedFile(file);
+    newItemPhotoDataUrl = dataUrl;
+    const preview = document.getElementById('newItemPhotoPreview');
+    preview.src = dataUrl;
+    preview.style.display = 'block';
+    document.getElementById('newItemPhotoPlaceholder').style.display = 'none';
+  }catch(err){
+    window.alert('Could not load that image — try a different file.');
+  }
+});
+
 document.getElementById('archiveClose').addEventListener('click', closeArchiveOverlay);
 document.getElementById('archiveOverlay').addEventListener('click', (e) => {
   if(e.target.id === 'archiveOverlay') closeArchiveOverlay();
