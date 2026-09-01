@@ -1268,6 +1268,7 @@
       <div class="overflow-menu" id="overflowMenu" style="display:none;">
         <button id="enterSelectModeBtn">🗑 Select Items to Delete</button>
         <button id="managePhotosBtn">🖼 Manage Custom Photos</button>
+        <button id="recoverPhotosBtn">🔧 Attempt Photo Recovery</button>
       </div>
     </div>
   </div>
@@ -3066,6 +3067,40 @@ document.getElementById('managePhotosBtn').addEventListener('click', () => {
   document.getElementById('overflowMenu').style.display = 'none';
   renderPhotoManager();
   document.getElementById('photoManagerOverlay').style.display = 'flex';
+});
+document.getElementById('recoverPhotosBtn').addEventListener('click', async () => {
+  document.getElementById('overflowMenu').style.display = 'none';
+  const btn = document.getElementById('recoverPhotosBtn');
+  const originalText = btn.textContent;
+  btn.textContent = 'Scanning…';
+  btn.disabled = true;
+
+  let recovered = 0;
+  let checked = 0;
+  for(const it of items){
+    checked++;
+    try{
+      const key = `${STORAGE_KEY}_photo_${it.id}`;
+      const found = await fsGet(key);
+      if(found && found.length > 10){
+        it.image = found;
+        it.hasCustomImage = true;
+        state.overlay[it.id] = { ...(state.overlay[it.id]||{}), image: found };
+        recovered++;
+      }
+    }catch(e){}
+  }
+
+  if(recovered > 0){
+    renderGrid();
+    await saveState();
+  }
+
+  btn.textContent = originalText;
+  btn.disabled = false;
+  window.alert(recovered > 0
+    ? `Recovered ${recovered} photo${recovered===1?'':'s'} out of ${checked} items checked, and saved them properly. Any not recovered were likely uploaded before the bug and can't be restored — you'll need to re-upload those.`
+    : `Checked ${checked} items — no recoverable photos found. Any photos lost were likely uploaded before the recent bug and will need to be re-uploaded manually.`);
 });
 document.getElementById('photoManagerClose').addEventListener('click', () => {
   document.getElementById('photoManagerOverlay').style.display = 'none';
