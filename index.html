@@ -1641,6 +1641,18 @@ function initFirebase(){
   }catch(e){ return null; }
 }
 
+// Firestore calls have no built-in timeout — on a bad/lost connection they
+// can hang indefinitely with no error and no resolution, which is exactly
+// what made the Save Now button (and background saves) appear to freeze.
+// Every network call below is wrapped so it gives up after a few seconds
+// instead of hanging forever.
+function withTimeout(promise, ms){
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('timed out')), ms))
+  ]);
+}
+
 async function fsSet(key, value){
   const db = initFirebase();
   if(!db) return false;
@@ -1658,7 +1670,7 @@ async function fsSet(key, value){
     chunks.forEach((chunk, i) => {
       batch.set(db.collection(FS_COLLECTION).doc(`${key}_chunk_${i}`), { data: chunk });
     });
-    await batch.commit();
+    await withTimeout(batch.commit(), 8000);
     cleanupOldChunks(key, chunks.length).catch(() => {});
     return true;
   }catch(e){ return false; }
@@ -1681,12 +1693,12 @@ async function fsGet(key){
   const db = initFirebase();
   if(!db) return undefined;
   try{
-    const metaSnap = await db.collection(FS_COLLECTION).doc(key + '_meta').get();
+    const metaSnap = await withTimeout(db.collection(FS_COLLECTION).doc(key + '_meta').get(), 6000);
     if(!metaSnap.exists) return undefined;
     const { chunkCount } = metaSnap.data();
-    const snaps = await Promise.all(
+    const snaps = await withTimeout(Promise.all(
       Array.from({ length: chunkCount }, (_, i) => db.collection(FS_COLLECTION).doc(`${key}_chunk_${i}`).get())
-    );
+    ), 8000);
     let result = '';
     for(const snap of snaps){
       if(!snap.exists) return undefined;
@@ -1834,8 +1846,10 @@ async function scheduleSave(){
 // flight to finish (so it never races it), then does one more save to
 // guarantee the very latest edits are flushed, and reports success/failure.
 async function forceSaveNow(){
-  while(saveInProgress){
+  let waited = 0;
+  while(saveInProgress && waited < 10000){
     await new Promise(r => setTimeout(r, 100));
+    waited += 100;
   }
   saveInProgress = true;
   const ok = await saveState();
