@@ -642,6 +642,10 @@
   .card.locked{opacity:0.55;}
   .card.locked [contenteditable]{pointer-events:none; cursor:default;}
   .card.locked .card-run{opacity:0.3; pointer-events:none;}
+  body.not-live .card-run{
+    opacity:0.3; pointer-events:none; cursor:not-allowed;
+    border-color:var(--hairline); color:var(--cream-dim); background:var(--panel);
+  }
 
   .focus-live-badge{
     display:inline-flex; align-items:center; gap:8px;
@@ -1237,7 +1241,7 @@
   }
 </style>
 </head>
-<body>
+<body class="not-live">
 
 <input type="file" id="imageUploadInput" accept="image/*" style="display:none;">
 <input type="file" id="newItemPhotoInput" accept="image/*" style="display:none;">
@@ -2148,6 +2152,7 @@ function restoreLiveUIIfNeeded(){
     startBtn.style.display = 'inline-block';
     endBtn.style.display = 'none';
   }
+  document.body.classList.toggle('not-live', !liveModeActive);
   updateLiveBanner();
 }
 
@@ -2189,16 +2194,17 @@ async function setLiveActive(active, customStartDate){
       showSessionEndedModal(0, 0);
     }
   }
+  document.body.classList.toggle('not-live', !active);
   updateLiveBanner();
   renderSalesSheet();
   updateStatsRow();
 }
 
 function runItem(id){
+  if(!liveModeActive) return; // Run only does anything once a stream is actually live
   const it = items.find(x => x.id === id);
   if(!it) return;
   currentRunningId = id;
-  if(!liveModeActive) setLiveActive(true);
   filtered = items.slice();
   focusIndex = filtered.findIndex(x => x.id === id);
   updateLiveBanner();
