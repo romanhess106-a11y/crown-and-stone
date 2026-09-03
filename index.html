@@ -3310,8 +3310,7 @@ document.getElementById('endLiveBtn').addEventListener('click', () => {
 });
 
 document.getElementById('salesSheetBtn').addEventListener('click', () => {
-  renderSalesSheet();
-  document.getElementById('salesSheetOverlay').style.display = 'flex';
+  window.location.href = 'sales-sheet.html';
 });
 document.getElementById('salesSheetClose').addEventListener('click', () => {
   document.getElementById('salesSheetOverlay').style.display = 'none';
