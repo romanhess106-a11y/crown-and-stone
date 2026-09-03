@@ -1779,7 +1779,7 @@ const storageAdapter = {
 };
 
 const STORAGE_KEY = 'crown-stone-show-state-v2';
-let state = { overlay: {}, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [], sessionStartedAt: null };
+let state = { overlay: {}, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [], sessionStartedAt: null, liveModeActive: false };
 let items = [];
 let filtered = [];
 let currentFilter = 'all';
@@ -1793,13 +1793,13 @@ async function loadState(){
     if(res && res.value){
       const parsed = JSON.parse(res.value);
       if(parsed && parsed.overlay){
-        state = { overlay: parsed.overlay || {}, order: parsed.order || null, duplicates: parsed.duplicates || {}, liveLotCounter: parsed.liveLotCounter || 0, sessionLog: parsed.sessionLog || [], sessionArchive: parsed.sessionArchive || [], sessionStartedAt: parsed.sessionStartedAt || null };
+        state = { overlay: parsed.overlay || {}, order: parsed.order || null, duplicates: parsed.duplicates || {}, liveLotCounter: parsed.liveLotCounter || 0, sessionLog: parsed.sessionLog || [], sessionArchive: parsed.sessionArchive || [], sessionStartedAt: parsed.sessionStartedAt || null, liveModeActive: !!parsed.liveModeActive };
       } else if(parsed){
         // legacy flat map format
-        state = { overlay: parsed, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [], sessionStartedAt: null };
+        state = { overlay: parsed, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [], sessionStartedAt: null, liveModeActive: false };
       }
     }
-  }catch(e){ state = { overlay: {}, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [], sessionStartedAt: null }; }
+  }catch(e){ state = { overlay: {}, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [], sessionStartedAt: null, liveModeActive: false }; }
 }
 async function saveState(){
   // Suppress the live listener from reacting to our own writes for a
@@ -2132,8 +2132,28 @@ function showSessionEndedModal(count, total){
   document.getElementById('sessionEndOverlay').style.display = 'flex';
 }
 
+// Reflects the persisted live/not-live status in the UI — used both on page
+// load (so a mid-show refresh doesn't lose "End Live") and whenever a
+// teammate's device changes it (so both screens always agree).
+function restoreLiveUIIfNeeded(){
+  liveModeActive = !!state.liveModeActive;
+  const startBtn = document.getElementById('startLiveBtn');
+  const endBtn = document.getElementById('endLiveBtn');
+  const sheetBtn = document.getElementById('salesSheetBtn');
+  if(liveModeActive){
+    startBtn.style.display = 'none';
+    endBtn.style.display = 'inline-block';
+    sheetBtn.style.display = 'inline-block';
+  } else {
+    startBtn.style.display = 'inline-block';
+    endBtn.style.display = 'none';
+  }
+  updateLiveBanner();
+}
+
 async function setLiveActive(active, customStartDate){
   liveModeActive = active;
+  state.liveModeActive = active; // persisted, so a page refresh mid-show doesn't lose live status
   const startBtn = document.getElementById('startLiveBtn');
   const endBtn = document.getElementById('endLiveBtn');
   const sheetBtn = document.getElementById('salesSheetBtn');
@@ -3457,6 +3477,7 @@ async function unlockApp(){
   await loadState();
   initItems();
   renderGrid();
+  restoreLiveUIIfNeeded();
 
   // Real-time sync: when a teammate saves a change elsewhere, pull it in
   // and refresh automatically, without needing a manual reload.
@@ -3464,6 +3485,7 @@ async function unlockApp(){
     await loadState();
     initItems();
     renderGrid();
+    restoreLiveUIIfNeeded();
     renderSalesSheet();
     updateLiveBanner();
     flashSyncedIndicator();
