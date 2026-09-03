@@ -1218,6 +1218,11 @@
     transition:background .15s ease;
   }
   .save-error-dismiss:hover{background:rgba(255,255,255,0.2);}
+  .save-error-banner.sync-pending{
+    background:#8a6a1f; color:#fff;
+    box-shadow:0 4px 16px rgba(138,106,31,0.28);
+    padding:14px 20px;
+  }
 
   .lock-screen{
     position:fixed; inset:0; z-index:500;
@@ -1666,6 +1671,10 @@ function initFirebase(){
     if(typeof firebase === 'undefined') return null;
     const app = firebase.apps && firebase.apps.length ? firebase.apps[0] : firebase.initializeApp(FIREBASE_CONFIG);
     fbDb = firebase.firestore(app);
+    // Let the Firestore SDK persist and retry pending writes itself, so a
+    // sale made offline still goes out even if the tab is closed and
+    // reopened before the connection returns.
+    try{ fbDb.enablePersistence({ synchronizeTabs: true }).catch(() => {}); }catch(e){}
     return fbDb;
   }catch(e){ return null; }
 }
@@ -1699,7 +1708,7 @@ async function fsSet(key, value){
     chunks.forEach((chunk, i) => {
       batch.set(db.collection(FS_COLLECTION).doc(`${key}_chunk_${i}`), { data: chunk });
     });
-    await withTimeout(batch.commit(), 8000);
+    await withTimeout(batch.commit(), 15000);
     cleanupOldChunks(key, chunks.length).catch(() => {});
     return true;
   }catch(e){ return false; }
@@ -1789,19 +1798,22 @@ const storageAdapter = {
   },
   async set(key, value){
     if(window.storage && window.storage.set){
-      try{ return await window.storage.set(key, value); }catch(e){}
+      try{
+        const r = await window.storage.set(key, value);
+        if(r) return { local:true, remote:true };
+      }catch(e){}
     }
-    idbSet(key, value).catch(() => {}); // always keep a local offline copy
-    try{
-      const ok = await fsSet(key, value);
-      if(ok) return { value };
-    }catch(e){}
-    // Firestore unreachable (offline etc.) — at least keep the local copy
-    // safe, and be honest with saveState() that the *shared* save failed.
-    try{
-      localStorage.setItem(key, value);
-    }catch(e){}
-    return null;
+    // COMMIT LOCALLY FIRST. This is the part that must not depend on a
+    // network. Once either of these succeeds the sale is recorded on this
+    // device and will survive a refresh, a crash or a dead battery.
+    let local = false;
+    try{ await idbSet(key, value); local = true; }catch(e){}
+    try{ localStorage.setItem(key, value); local = true; }catch(e){}
+
+    // Now try to share it. Failure here is a sync delay, not a lost sale.
+    let remote = false;
+    try{ remote = await fsSet(key, value); }catch(e){}
+    return { local, remote };
   }
 };
 
@@ -1829,25 +1841,67 @@ async function loadState(){
   }catch(e){ state = { overlay: {}, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [], sessionStartedAt: null, liveModeActive: false }; }
 }
 async function saveState(){
-  // Suppress the live listener from reacting to our own writes for a
-  // short window — this is a defense-in-depth against a race where a
-  // just-uploaded photo (or any edit) could get overwritten by a stale
-  // "echo" of our own save arriving back through the sync listener.
   recentLocalWriteUntil = Date.now() + 4000;
+  let res = null;
   try{
-    const result = await storageAdapter.set(STORAGE_KEY, JSON.stringify(state));
-    if(!result){
-      showSaveErrorBanner();
-      return false;
-    }
-    hideSaveErrorBanner();
-    flashSavedIndicator();
-    return true;
-  }catch(e){
-    showSaveErrorBanner();
+    res = await storageAdapter.set(STORAGE_KEY, JSON.stringify(state));
+  }catch(e){ res = null; }
+
+  if(!res || !res.local){
+    // Genuinely could not write to this device. This is the only case
+    // that actually risks losing the sale, and it is very rare.
+    setSyncStatus('local-failed');
     return false;
   }
+  if(res.remote){
+    setSyncStatus('synced');
+    flashSavedIndicator();
+    return true;
+  }
+  // Saved here, not shared yet. Keep trying in the background.
+  setSyncStatus('pending');
+  flashSavedIndicator();
+  startSyncRetry();
+  return true;
 }
+
+// --- Background sync retry -------------------------------------------
+// The sale is already committed on this device. This loop exists only to
+// get it up to the shared database, and it keeps going until it does.
+let syncStatus = 'synced'; // 'synced' | 'pending' | 'local-failed'
+let syncRetryTimer = null;
+
+function setSyncStatus(s){
+  syncStatus = s;
+  renderSyncBanner();
+}
+
+function startSyncRetry(){
+  if(syncRetryTimer) return;
+  syncRetryTimer = setInterval(async () => {
+    if(syncStatus !== 'pending'){
+      clearInterval(syncRetryTimer);
+      syncRetryTimer = null;
+      return;
+    }
+    try{
+      const ok = await fsSet(STORAGE_KEY, JSON.stringify(state));
+      if(ok){
+        setSyncStatus('synced');
+        clearInterval(syncRetryTimer);
+        syncRetryTimer = null;
+      }
+    }catch(e){}
+  }, 10000);
+}
+
+// Retry the instant the device reports it's back online, rather than
+// waiting out the interval.
+window.addEventListener('online', () => {
+  if(syncStatus === 'pending' || syncStatus === 'local-failed'){
+    scheduleSave();
+  }
+});
 
 // Guarantees only one save is ever in flight at a time, and that whichever
 // save actually runs reflects the LATEST state — not a stale snapshot from
@@ -1899,14 +1953,28 @@ function flashSavedIndicator(){
   saveToastTimer = setTimeout(() => el.classList.remove('show'), 1100);
 }
 
-function showSaveErrorBanner(){
+function renderSyncBanner(){
   const banner = document.getElementById('saveErrorBanner');
-  if(banner) banner.style.display = 'flex';
+  const text = document.getElementById('saveErrorText');
+  const dismiss = document.getElementById('saveErrorDismiss');
+  if(!banner || !text) return;
+  if(syncStatus === 'synced'){
+    banner.style.display = 'none';
+    return;
+  }
+  if(syncStatus === 'pending'){
+    banner.className = 'save-error-banner sync-pending';
+    text.textContent = '↻ Saved on this device. Waiting on the connection to share it with your other devices — your sales are recorded either way.';
+    if(dismiss) dismiss.style.display = 'none';
+  } else {
+    banner.className = 'save-error-banner';
+    text.textContent = '⚠ This device could not save. Do not close this tab — write down any sales made since the last save.';
+    if(dismiss) dismiss.style.display = 'none';
+  }
+  banner.style.display = 'flex';
 }
-function hideSaveErrorBanner(){
-  const banner = document.getElementById('saveErrorBanner');
-  if(banner) banner.style.display = 'none';
-}
+function showSaveErrorBanner(){ setSyncStatus('local-failed'); }
+function hideSaveErrorBanner(){ setSyncStatus('synced'); }
 
 function initItems(){
   const duplicateList = Object.values(state.duplicates || {});
@@ -3346,6 +3414,15 @@ document.getElementById('startLiveDateConfirm').addEventListener('click', () => 
 });
 
 document.getElementById('endLiveBtn').addEventListener('click', () => {
+  if(syncStatus !== 'synced'){
+    const ok = window.confirm(
+      "This session hasn't finished syncing to your other devices yet.\n\n" +
+      "Your sales are saved on this device and will sync on their own once " +
+      "the connection is back. If you end the stream now, leave this tab open " +
+      "until the orange banner disappears.\n\nEnd the stream anyway?"
+    );
+    if(!ok) return;
+  }
   setLiveActive(false);
 });
 
