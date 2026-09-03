@@ -561,6 +561,7 @@
     font-family:var(--mono); font-size:12.5px; color:var(--cream-dim); display:flex; gap:14px;
   }
   .archive-session-meta span.archive-total{color:var(--gold-bright); font-weight:700;}
+  .archive-session-meta span.archive-retail{color:var(--good); font-weight:700;}
   .archive-delete-btn{
     background:none; border:1px solid var(--hairline); color:var(--cream-dim);
     width:36px; height:36px; border-radius:50%; cursor:pointer; flex-shrink:0;
@@ -1425,7 +1426,7 @@
       <div class="session-end-divider"></div>
       <div class="session-end-stat">
         <div class="session-end-value" id="sessionEndTotal">$0.00</div>
-        <div class="session-end-caption">Total Sales</div>
+        <div class="session-end-caption">Total Cost</div>
       </div>
     </div>
     <div class="session-end-note" id="sessionEndNote">Saved to your archive — view full details in the Sales Sheet anytime.</div>
@@ -2074,7 +2075,8 @@ function renderArchiveList(){
           <div class="archive-session-date">${escapeHtml(dateLabel)}</div>
           <div class="archive-session-meta">
             <span>${sess.count} sold</span>
-            <span class="archive-total">$${sess.total.toFixed(2)}</span>
+            <span class="archive-total">$${sess.total.toFixed(2)} cost</span>
+            ${sess.retailTotal ? `<span class="archive-retail">$${sess.retailTotal.toFixed(2)} retail</span>` : ''}
           </div>
         </div>
         <button class="archive-delete-btn" data-idx="${i}" title="Delete this stream's record" aria-label="Delete stream record">
@@ -2128,7 +2130,8 @@ function openArchiveDetail(idx){
     </tr>
   `).join('');
 
-  document.getElementById('archiveDetailFooter').textContent = `${sess.count} sold · $${sess.total.toFixed(2)} total`;
+  const retailPart = sess.retailTotal ? ` · $${sess.retailTotal.toFixed(2)} retail` : '';
+  document.getElementById('archiveDetailFooter').textContent = `${sess.count} sold · $${sess.total.toFixed(2)} cost${retailPart}`;
 }
 
 function closeArchiveDetail(){
@@ -2149,7 +2152,7 @@ function openArchiveDeleteConfirm(idx){
   document.getElementById('confirmModalLabel').style.display = '';
   document.getElementById('confirmModalLabel').textContent = 'Confirm Delete';
   document.getElementById('confirmModalName').textContent = `Delete the record for ${dateLabel}?`;
-  document.getElementById('confirmModalStock').textContent = `This will permanently remove ${sess.count} sold item${sess.count===1?'':'s'} ($${sess.total.toFixed(2)}) from your archive. This cannot be undone.`;
+  document.getElementById('confirmModalStock').textContent = `This will permanently remove ${sess.count} sold item${sess.count===1?'':'s'} ($${sess.total.toFixed(2)} cost) from your archive. This cannot be undone.`;
   document.getElementById('confirmModalYes').textContent = '✓ Yes, Delete';
   document.getElementById('confirmModalOverlay').style.display = 'flex';
 }
@@ -2203,7 +2206,9 @@ function renderSalesSheet(){
   `).join('');
 
   const total = log.reduce((sum, s) => sum + parseFloat(s.price || 0), 0);
-  totalEl.textContent = `${log.length} sold · $${total.toFixed(2)} total`;
+  const retailTotal = log.reduce((sum, s) => sum + (parseFloat(s.retailPrice) || 0), 0);
+  const retailPart = retailTotal ? ` · $${retailTotal.toFixed(2)} retail` : '';
+  totalEl.textContent = `${log.length} sold · $${total.toFixed(2)} cost${retailPart}`;
 }
 
 function updateLiveBanner(){
@@ -2272,13 +2277,15 @@ async function setLiveActive(active, customStartDate){
     const log = state.sessionLog || [];
     if(log.length > 0){
       const total = log.reduce((sum, s) => sum + parseFloat(s.price || 0), 0);
+      const retailTotal = log.reduce((sum, s) => sum + (parseFloat(s.retailPrice) || 0), 0);
       state.sessionArchive = state.sessionArchive || [];
       state.sessionArchive.unshift({
         startedAt: state.sessionStartedAt || null,
         endedAt: new Date().toISOString(),
         log: log,
         count: log.length,
-        total: total
+        total: total,
+        retailTotal: retailTotal
       });
       // keep the archive from growing without bound
       if(state.sessionArchive.length > 30) state.sessionArchive = state.sessionArchive.slice(0, 30);
@@ -3121,7 +3128,7 @@ async function confirmItemSold(){
     locked: outOfStock
   };
   state.sessionLog = state.sessionLog || [];
-  state.sessionLog.push({ lot, itemId: it.id, num: it.num, sku: it.sku, name: it.name, price: it.price });
+  state.sessionLog.push({ lot, itemId: it.id, num: it.num, sku: it.sku, name: it.name, price: it.price, retailPrice: it.retailPrice });
   renderFocus();
   renderGrid();
   updateLiveBanner();
