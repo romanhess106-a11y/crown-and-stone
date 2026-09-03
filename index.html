@@ -1298,6 +1298,7 @@
         <button id="enterSelectModeBtn">🗑 Select Items to Delete</button>
         <button id="managePhotosBtn">🖼 Manage Custom Photos</button>
         <button id="recoverPhotosBtn">🔧 Attempt Photo Recovery</button>
+        <button id="resetSalesBtn">↺ Reset All Sales Data</button>
       </div>
     </div>
   </div>
@@ -3197,6 +3198,11 @@ document.getElementById('managePhotosBtn').addEventListener('click', () => {
   renderPhotoManager();
   document.getElementById('photoManagerOverlay').style.display = 'flex';
 });
+document.getElementById('resetSalesBtn').addEventListener('click', () => {
+  document.getElementById('overflowMenu').style.display = 'none';
+  openResetSalesConfirm();
+});
+
 document.getElementById('recoverPhotosBtn').addEventListener('click', async () => {
   document.getElementById('overflowMenu').style.display = 'none';
   const btn = document.getElementById('recoverPhotosBtn');
@@ -3282,8 +3288,51 @@ async function performBulkDelete(){
   scheduleSave();
 }
 
-function openBulkConfirmModal(){
-  confirmModalMode = 'bulk-delete';
+// Clears everything produced by selling — stock counts, sold/locked flags,
+// lot numbers, the current session and the past-streams archive — while
+// leaving photos, SKUs, names, retail prices, notes and custom order alone.
+function openResetSalesConfirm(){
+  confirmModalMode = 'reset-sales';
+  const soldCount = (state.sessionArchive || []).reduce((n, s) => n + (s.count || 0), 0) + (state.sessionLog || []).length;
+  document.getElementById('confirmModalImg').closest('.confirm-modal-img-wrap').style.display = 'none';
+  document.getElementById('confirmModalItemBadge').style.display = 'none';
+  document.getElementById('confirmModalLotBlock').style.display = 'none';
+  document.getElementById('confirmModalLabel').style.display = '';
+  document.getElementById('confirmModalLabel').textContent = 'Reset All Sales Data';
+  document.getElementById('confirmModalName').textContent = 'Clear every sale and start fresh?';
+  document.getElementById('confirmModalStock').textContent =
+    `This restores all stock counts to their original numbers, unlocks every sold-out piece, resets lot numbering to 1, and deletes ${soldCount} recorded sale${soldCount===1?'':'s'} along with your past streams. Your photos, SKUs, names, retail prices, notes and item order are all kept. This cannot be undone.`;
+  document.getElementById('confirmModalYes').textContent = '✓ Yes, Reset Sales';
+  document.getElementById('confirmModalOverlay').style.display = 'flex';
+}
+
+async function performResetSales(){
+  Object.keys(state.overlay || {}).forEach(id => {
+    const o = state.overlay[id];
+    if(!o) return;
+    delete o.qty;
+    delete o.sold;
+    delete o.locked;
+    delete o.soldEvents;
+  });
+  state.liveLotCounter = 0;
+  state.sessionLog = [];
+  state.sessionArchive = [];
+  state.sessionStartedAt = null;
+  state.liveModeActive = false;
+  liveModeActive = false;
+
+  initItems();
+  applyFilters();
+  restoreLiveUIIfNeeded();
+  renderGrid();
+  updateLiveBanner();
+  renderSalesSheet();
+  renderArchive();
+  await scheduleSave();
+}
+
+function openBulkConfirmModal(){  confirmModalMode = 'bulk-delete';
   document.getElementById('confirmModalImg').closest('.confirm-modal-img-wrap').style.display = 'none';
   document.getElementById('confirmModalItemBadge').style.display = 'none';
   document.getElementById('confirmModalLotBlock').style.display = 'none';
@@ -3339,6 +3388,8 @@ document.getElementById('confirmModalYes').addEventListener('click', (e) => {
     performBulkDelete();
   } else if(confirmModalMode === 'delete-archive-session'){
     performArchiveDelete();
+  } else if(confirmModalMode === 'reset-sales'){
+    performResetSales();
   } else {
     confirmItemSold();
   }
