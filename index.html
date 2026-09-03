@@ -2192,6 +2192,7 @@ async function setLiveActive(active, customStartDate){
       scheduleSave();
     } else {
       showSessionEndedModal(0, 0);
+      scheduleSave(); // must save even with zero sales, or "ended" never actually persists
     }
   }
   document.body.classList.toggle('not-live', !active);
