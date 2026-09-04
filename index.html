@@ -1680,8 +1680,14 @@ async function idbSet(key, value){
       const tx = db.transaction(IDB_STORE, 'readwrite');
       tx.objectStore(IDB_STORE).put(value, key);
       tx.oncomplete = () => resolve(true);
-      tx.onerror = () => resolve(false);
-    }catch(e){ resolve(false); }
+      tx.onerror = () => {
+        console.error('[Crown & Stone] IndexedDB transaction error:', tx.error && (tx.error.name || tx.error.message || tx.error));
+        resolve(false);
+      };
+    }catch(e){
+      console.error('[Crown & Stone] IndexedDB idbSet threw:', e && (e.name || e.message || e));
+      resolve(false);
+    }
   });
 }
 
@@ -1857,12 +1863,12 @@ const storageAdapter = {
     // network. Once either of these succeeds the sale is recorded on this
     // device and will survive a refresh, a crash or a dead battery.
     let local = false;
-    try{ await idbSet(key, value); local = true; }catch(e){}
-    try{ localStorage.setItem(key, value); local = true; }catch(e){}
+    try{ await idbSet(key, value); local = true; }catch(e){ console.error('[Crown & Stone] IndexedDB write failed:', e && (e.name || e.message || e)); }
+    try{ localStorage.setItem(key, value); local = true; }catch(e){ console.error('[Crown & Stone] localStorage write failed:', e && (e.name || e.message || e)); }
 
     // Now try to share it. Failure here is a sync delay, not a lost sale.
     let remote = false;
-    try{ remote = await fsSet(key, value); }catch(e){}
+    try{ remote = await fsSet(key, value); }catch(e){ console.error('[Crown & Stone] unexpected error calling fsSet:', e && (e.code || e.message || e)); }
     return { local, remote };
   }
 };
