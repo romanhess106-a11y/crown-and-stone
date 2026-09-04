@@ -1299,8 +1299,10 @@
         <button id="managePhotosBtn">🖼 Manage Custom Photos</button>
         <button id="recoverPhotosBtn">🔧 Attempt Photo Recovery</button>
         <button id="resetSalesBtn">↺ Reset All Sales Data</button>
+        <button id="restoreBackupBtn">📥 Restore from Backup File</button>
       </div>
     </div>
+    <input type="file" id="restoreBackupInput" accept="application/json" style="display:none;">
   </div>
   <div class="hero-wordmark">👑 CROWN &amp; STONE</div>
   <div class="hero-sub">Show Board</div>
@@ -1842,6 +1844,67 @@ async function loadState(){
     }
   }catch(e){ state = { overlay: {}, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [], sessionStartedAt: null, liveModeActive: false }; }
 }
+// Takes a Full Backup JSON file and makes it the exact, authoritative state
+// of the live shared catalog — including photos. Anything currently live
+// that isn't in the backup gets marked deleted; everything in the backup
+// gets restored exactly as it was saved, in the same order.
+async function restoreFromBackup(backupItems){
+  const rawIds = new Set(RAW_ITEMS.map(it => it.id));
+  const backupIds = new Set(backupItems.map(it => it.id));
+
+  const currentSourceList = RAW_ITEMS.concat(Object.values(state.duplicates || {}));
+  currentSourceList.forEach(it => {
+    if(!backupIds.has(it.id)){
+      state.overlay[it.id] = { ...(state.overlay[it.id]||{}), deleted: true };
+    }
+  });
+
+  backupItems.forEach(it => {
+    state.overlay[it.id] = {
+      ...(state.overlay[it.id]||{}),
+      name: it.name,
+      price: it.price,
+      qty: it.qty,
+      retailPrice: it.retailPrice || '',
+      note: it.note || '',
+      material: it.material || '',
+      length: it.length || '',
+      width: it.width || '',
+      sold: !!it.sold,
+      sku: it.sku,
+      image: it.image,
+      deleted: false
+    };
+
+    if(!rawIds.has(it.id)){
+      state.duplicates = state.duplicates || {};
+      state.duplicates[it.id] = {
+        id: it.id,
+        sku: it.sku,
+        variant: it.variant || '',
+        name: it.name,
+        qty: it.qty,
+        price: it.price,
+        priceDiscount: it.priceDiscount || it.price,
+        image: it.image,
+        material: it.material || '',
+        length: it.length || '',
+        width: it.width || '',
+        category: it.category || 'Other',
+        style: it.style || 'Other',
+        isHero: !!it.isHero
+      };
+    }
+  });
+
+  const sortedBackup = [...backupItems].sort((a,b) => a.num - b.num);
+  state.order = sortedBackup.map(it => it.id);
+
+  initItems();
+  renderGrid();
+  return await saveState();
+}
+
 async function saveState(){
   recentLocalWriteUntil = Date.now() + 4000;
   let res = null;
@@ -3201,6 +3264,32 @@ document.getElementById('managePhotosBtn').addEventListener('click', () => {
 document.getElementById('resetSalesBtn').addEventListener('click', () => {
   document.getElementById('overflowMenu').style.display = 'none';
   openResetSalesConfirm();
+});
+
+document.getElementById('restoreBackupBtn').addEventListener('click', () => {
+  document.getElementById('overflowMenu').style.display = 'none';
+  document.getElementById('restoreBackupInput').click();
+});
+document.getElementById('restoreBackupInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  try{
+    const text = await file.text();
+    const backupItems = JSON.parse(text);
+    if(!Array.isArray(backupItems) || backupItems.length === 0){
+      window.alert("That file doesn't look like a valid backup.");
+      return;
+    }
+    const ok = window.confirm(`This will REPLACE your entire live catalog with the ${backupItems.length} items from this backup file, including photos. This affects the SHARED database — your employee will see this too. This cannot be undone.\n\nAre you sure?`);
+    if(!ok) return;
+    const success = await restoreFromBackup(backupItems);
+    window.alert(success
+      ? `Restored ${backupItems.length} items from backup and saved to the shared database.`
+      : `Restored ${backupItems.length} items locally, but saving to the shared database failed — check your connection and tap "Save Now" to retry.`);
+  }catch(err){
+    window.alert("Could not read that backup file. Make sure it's a valid Full Backup JSON file.");
+  }
 });
 
 document.getElementById('recoverPhotosBtn').addEventListener('click', async () => {
