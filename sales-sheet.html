@@ -250,7 +250,7 @@ async function fsGet(key){
   }catch(e){ return undefined; }
 }
 
-let cachedState = { sessionLog: [], liveLotCounter: 0, sessionArchive: [], sessionStartedAt: null };
+let cachedState = { sessionLog: [], liveLotCounter: 0, sessionArchive: [], sessionStartedAt: null, liveModeActive: false };
 
 async function refreshStateFromFirestore(){
   try{
@@ -262,7 +262,8 @@ async function refreshStateFromFirestore(){
         sessionLog: parsed.sessionLog || [],
         liveLotCounter: parsed.liveLotCounter || 0,
         sessionArchive: parsed.sessionArchive || [],
-        sessionStartedAt: parsed.sessionStartedAt || null
+        sessionStartedAt: parsed.sessionStartedAt || null,
+        liveModeActive: !!parsed.liveModeActive
       };
       return true;
     }
@@ -290,7 +291,8 @@ function loadState(){
         sessionLog: parsed.sessionLog || [],
         liveLotCounter: parsed.liveLotCounter || 0,
         sessionArchive: parsed.sessionArchive || [],
-        sessionStartedAt: parsed.sessionStartedAt || null
+        sessionStartedAt: parsed.sessionStartedAt || null,
+        liveModeActive: !!parsed.liveModeActive
       };
     }
   }catch(e){}
@@ -467,6 +469,19 @@ async function unlockApp(){
   document.getElementById('lockScreen').style.display = 'none';
   document.getElementById('appRoot').classList.remove('app-hidden');
   await refreshStateFromFirestore();
+
+  // If there's no genuinely active live session right now, and the
+  // "current" session has clearly fewer sales than the most recent
+  // completed stream, default to showing that stream instead — much more
+  // useful than a stray near-empty test session.
+  if(!cachedState.liveModeActive && cachedState.sessionArchive && cachedState.sessionArchive.length > 0){
+    const topArchiveCount = cachedState.sessionArchive[0].count || 0;
+    const currentCount = (cachedState.sessionLog || []).length;
+    if(currentCount < topArchiveCount){
+      selectedSessionValue = 'archive-0';
+    }
+  }
+
   render();
   startLiveListener();
 }
