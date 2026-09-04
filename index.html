@@ -386,6 +386,18 @@
     transition:border-color .15s ease;
   }
   .new-item-label input:focus{border-color:var(--gold);}
+  .new-item-label textarea{
+    font-family:var(--sans); font-size:15px; color:var(--cream); font-weight:400;
+    background:var(--panel-2); border:1px solid var(--hairline); border-radius:10px;
+    padding:11px 14px; outline:none; text-transform:none; letter-spacing:normal;
+    resize:vertical; min-height:70px;
+    transition:border-color .15s ease;
+  }
+  .new-item-label textarea:focus{border-color:var(--gold);}
+  .run-display-note{
+    font-family:var(--sans); font-size:13px; color:var(--cream-dim); line-height:1.5;
+    margin-bottom:6px;
+  }
   .new-item-row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;}
   .new-item-footer{
     display:flex; gap:12px; padding:18px 24px 24px;
@@ -1311,6 +1323,7 @@
     <button class="hero-live-btn hero-live-btn-end" id="endLiveBtn" style="display:none;">■ End Live</button>
     <button class="hero-archive-btn" id="archiveBtn">🗂 Past Streams</button>
     <button class="hero-archive-btn" id="salesSheetBtn" style="display:none;">📋 Current Stream</button>
+    <button class="hero-archive-btn" id="runDisplayBtn" style="display:none;">🎤 Run Display</button>
   </div>
 </div>
 
@@ -1414,6 +1427,30 @@
     <div class="new-item-footer">
       <button class="confirm-modal-cancel" id="newItemCancel">Cancel</button>
       <button class="confirm-modal-yes" id="newItemSubmit">+ Add Item</button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-modal-overlay" id="runDisplayOverlay" style="display:none;">
+  <div class="new-item-modal">
+    <div class="new-item-header">
+      <div class="confirm-modal-label">Run Display</div>
+      <button class="focus-close" id="runDisplayClose">✕</button>
+    </div>
+    <div class="new-item-body">
+      <div class="run-display-note">For something you're showing live that isn't in your inventory — no item number needed, just describe what it is.</div>
+      <div class="new-item-fields">
+        <label class="new-item-label">Description
+          <textarea id="runDisplayDescription" rows="3" placeholder="What are you showing right now?"></textarea>
+        </label>
+        <label class="new-item-label">Price (optional)
+          <input type="text" id="runDisplayPrice" placeholder="0.00" inputmode="decimal">
+        </label>
+      </div>
+    </div>
+    <div class="new-item-footer">
+      <button class="confirm-modal-cancel" id="runDisplayCancel">Cancel</button>
+      <button class="confirm-modal-yes" id="runDisplaySubmit">✓ Confirm Sold</button>
     </div>
   </div>
 </div>
@@ -2189,7 +2226,7 @@ function openArchiveDetail(idx){
   document.getElementById('archiveDetailBody').innerHTML = sorted.map(s => `
     <tr>
       <td class="sales-sheet-lot">#${s.lot}</td>
-      <td class="sales-sheet-num">${String(s.num).padStart(2,'0')}</td>
+      <td class="sales-sheet-num">${s.num ? String(s.num).padStart(2,'0') : '—'}</td>
       <td class="sales-sheet-name">${escapeHtml(s.name)}</td>
     </tr>
   `).join('');
@@ -2264,7 +2301,7 @@ function renderSalesSheet(){
   body.innerHTML = sorted.map(s => `
     <tr>
       <td class="sales-sheet-lot">#${s.lot}</td>
-      <td class="sales-sheet-num">${String(s.num).padStart(2,'0')}</td>
+      <td class="sales-sheet-num">${s.num ? String(s.num).padStart(2,'0') : '—'}</td>
       <td class="sales-sheet-name">${escapeHtml(s.name)}</td>
     </tr>
   `).join('');
@@ -2307,13 +2344,17 @@ function restoreLiveUIIfNeeded(){
   const startBtn = document.getElementById('startLiveBtn');
   const endBtn = document.getElementById('endLiveBtn');
   const sheetBtn = document.getElementById('salesSheetBtn');
+  const runDisplayBtn = document.getElementById('runDisplayBtn');
   if(liveModeActive){
     startBtn.style.display = 'none';
     endBtn.style.display = 'inline-block';
     sheetBtn.style.display = 'inline-block';
+    runDisplayBtn.style.display = 'inline-block';
   } else {
     startBtn.style.display = 'inline-block';
     endBtn.style.display = 'none';
+    sheetBtn.style.display = 'none';
+    runDisplayBtn.style.display = 'none';
   }
   document.body.classList.toggle('not-live', !liveModeActive);
   updateLiveBanner();
@@ -2325,10 +2366,12 @@ async function setLiveActive(active, customStartDate){
   const startBtn = document.getElementById('startLiveBtn');
   const endBtn = document.getElementById('endLiveBtn');
   const sheetBtn = document.getElementById('salesSheetBtn');
+  const runDisplayBtn = document.getElementById('runDisplayBtn');
   if(active){
     startBtn.style.display = 'none';
     endBtn.style.display = 'inline-block';
     sheetBtn.style.display = 'inline-block';
+    runDisplayBtn.style.display = 'inline-block';
     state.liveLotCounter = 0;
     state.sessionLog = [];
     state.sessionStartedAt = customStartDate || new Date().toISOString();
@@ -2337,6 +2380,8 @@ async function setLiveActive(active, customStartDate){
   } else {
     startBtn.style.display = 'inline-block';
     endBtn.style.display = 'none';
+    sheetBtn.style.display = 'none';
+    runDisplayBtn.style.display = 'none';
     currentRunningId = null;
     const log = state.sessionLog || [];
     if(log.length > 0){
@@ -3200,6 +3245,37 @@ async function confirmItemSold(){
   scheduleSave();
 }
 
+function openRunDisplayModal(){
+  document.getElementById('runDisplayDescription').value = '';
+  document.getElementById('runDisplayPrice').value = '';
+  document.getElementById('runDisplayOverlay').style.display = 'flex';
+  document.getElementById('runDisplayDescription').focus();
+}
+function closeRunDisplayModal(){
+  document.getElementById('runDisplayOverlay').style.display = 'none';
+}
+
+async function submitRunDisplay(){
+  const description = document.getElementById('runDisplayDescription').value.trim();
+  if(!description){
+    window.alert('Please add a description before confirming.');
+    return;
+  }
+  const priceRaw = document.getElementById('runDisplayPrice').value.trim();
+  const price = priceRaw === '' ? '0.00' : (parseFloat(priceRaw.replace(/[^0-9.]/g,'')) || 0).toFixed(2);
+
+  state.liveLotCounter = (state.liveLotCounter || 0) + 1;
+  const lot = state.liveLotCounter;
+
+  state.sessionLog = state.sessionLog || [];
+  state.sessionLog.push({ lot, itemId: null, num: null, sku: '', name: description, price, retailPrice: '' });
+
+  closeRunDisplayModal();
+  updateLiveBanner();
+  renderSalesSheet();
+  scheduleSave();
+}
+
 async function updateQty(delta){
   const it = filtered[focusIndex];
   if(!it) return;
@@ -3575,6 +3651,17 @@ document.getElementById('endLiveBtn').addEventListener('click', () => {
 
 document.getElementById('salesSheetBtn').addEventListener('click', () => {
   window.location.href = 'sales-sheet.html';
+});
+document.getElementById('runDisplayBtn').addEventListener('click', () => {
+  openRunDisplayModal();
+});
+document.getElementById('runDisplayClose').addEventListener('click', closeRunDisplayModal);
+document.getElementById('runDisplayCancel').addEventListener('click', closeRunDisplayModal);
+document.getElementById('runDisplayOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'runDisplayOverlay') closeRunDisplayModal();
+});
+document.getElementById('runDisplaySubmit').addEventListener('click', () => {
+  submitRunDisplay();
 });
 document.getElementById('salesSheetClose').addEventListener('click', () => {
   document.getElementById('salesSheetOverlay').style.display = 'none';
