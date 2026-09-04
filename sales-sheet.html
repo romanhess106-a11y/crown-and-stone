@@ -268,6 +268,22 @@ async function refreshStateFromFirestore(){
       return true;
     }
   }catch(e){}
+  // Firestore fetch failed (e.g. offline) — fall back to whatever this
+  // device last saved locally, rather than showing nothing at all.
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      cachedState = {
+        sessionLog: parsed.sessionLog || [],
+        liveLotCounter: parsed.liveLotCounter || 0,
+        sessionArchive: parsed.sessionArchive || [],
+        sessionStartedAt: parsed.sessionStartedAt || null,
+        liveModeActive: !!parsed.liveModeActive
+      };
+      return true;
+    }
+  }catch(e){}
   return false;
 }
 
@@ -282,20 +298,12 @@ function startLiveListener(){
   }catch(e){}
 }
 
+// Always trust the freshly-fetched Firestore data (cachedState), not
+// localStorage directly — localStorage is shared across every page on this
+// site, including the Show Board tab, which writes to it independently.
+// Reading it directly here could show stale or unrelated data from another
+// open tab instead of what's actually live right now.
 function loadState(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(raw){
-      const parsed = JSON.parse(raw);
-      return {
-        sessionLog: parsed.sessionLog || [],
-        liveLotCounter: parsed.liveLotCounter || 0,
-        sessionArchive: parsed.sessionArchive || [],
-        sessionStartedAt: parsed.sessionStartedAt || null,
-        liveModeActive: !!parsed.liveModeActive
-      };
-    }
-  }catch(e){}
   return cachedState;
 }
 
