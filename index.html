@@ -1995,14 +1995,8 @@ function startSyncRetry(){
       syncRetryTimer = null;
       return;
     }
-    try{
-      const ok = await fsSet(STORAGE_KEY, JSON.stringify(state));
-      if(ok){
-        setSyncStatus('synced');
-        clearInterval(syncRetryTimer);
-        syncRetryTimer = null;
-      }
-    }catch(e){}
+    if(saveInProgress) return; // a save (regular or retry) is already in flight — never stack another one
+    scheduleSave();
   }, 10000);
 }
 
