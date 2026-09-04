@@ -372,7 +372,7 @@ function render(){
   body.innerHTML = sorted.map(s => `
     <tr>
       <td class="lot-cell">#${escapeHtml(s.lot)}</td>
-      <td class="num-cell">${String(s.num).padStart(2,'0')}</td>
+      <td class="num-cell">${s.num ? String(s.num).padStart(2,'0') : '—'}</td>
       <td>${escapeHtml(s.name)}</td>
     </tr>
   `).join('');
@@ -423,7 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const sorted = [...log].sort((a,b) => a.lot - b.lot);
     const rows = [['Lot', 'Item No.', 'Description']]
-      .concat(sorted.map(s => [s.lot, String(s.num).padStart(2,'0'), s.name]));
+      .concat(sorted.map(s => [s.lot, s.num ? String(s.num).padStart(2,'0') : '—', s.name]));
     downloadCSV(`crown-and-stone-sales-${safeFilenamePart(label)}.csv`, rows);
   });
 
@@ -433,13 +433,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const currentLabel = formatDate(state.sessionStartedAt) || 'Current session';
     [...(state.sessionLog || [])].sort((a,b) => a.lot - b.lot).forEach(s => {
-      rows.push([currentLabel, s.lot, String(s.num).padStart(2,'0'), s.name]);
+      rows.push([currentLabel, s.lot, s.num ? String(s.num).padStart(2,'0') : '—', s.name]);
     });
 
     (state.sessionArchive || []).forEach(sess => {
       const label = formatDate(sess.startedAt) || formatDate(sess.endedAt) || 'Past session';
       [...(sess.log || [])].sort((a,b) => a.lot - b.lot).forEach(s => {
-        rows.push([label, s.lot, String(s.num).padStart(2,'0'), s.name]);
+        rows.push([label, s.lot, s.num ? String(s.num).padStart(2,'0') : '—', s.name]);
       });
     });
 
