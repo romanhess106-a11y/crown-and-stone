@@ -482,12 +482,19 @@ async function unlockApp(){
   // "current" session has clearly fewer sales than the most recent
   // completed stream, default to showing that stream instead — much more
   // useful than a stray near-empty test session.
-  if(!cachedState.liveModeActive && cachedState.sessionArchive && cachedState.sessionArchive.length > 0){
-    const topArchiveCount = cachedState.sessionArchive[0].count || 0;
-    const currentCount = (cachedState.sessionLog || []).length;
-    if(currentCount < topArchiveCount){
-      selectedSessionValue = 'archive-0';
-    }
+  // Default to whichever session — current or any archive — actually has
+  // the most real sales, not just whichever is most recent. Test sessions
+  // from debugging can land after a real stream and bury it otherwise.
+  if(!cachedState.liveModeActive){
+    let bestValue = 'current';
+    let bestCount = (cachedState.sessionLog || []).length;
+    (cachedState.sessionArchive || []).forEach((s, i) => {
+      if((s.count || 0) > bestCount){
+        bestCount = s.count || 0;
+        bestValue = `archive-${i}`;
+      }
+    });
+    selectedSessionValue = bestValue;
   }
 
   render();
