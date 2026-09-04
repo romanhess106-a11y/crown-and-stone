@@ -1758,7 +1758,7 @@ async function fsSet(key, value){
     chunks.forEach((chunk, i) => {
       batch.set(db.collection(FS_COLLECTION).doc(`${key}_chunk_${i}`), { data: chunk });
     });
-    await withTimeout(batch.commit(), 15000);
+    await withTimeout(batch.commit(), 9000);
     cleanupOldChunks(key, chunks.length).catch(() => {});
     return true;
   }catch(e){
@@ -2003,7 +2003,7 @@ function startSyncRetry(){
     }
     if(saveInProgress) return; // a save (regular or retry) is already in flight — never stack another one
     scheduleSave();
-  }, 10000);
+  }, 3000); // retry every 3s (was 10s) — safe now that overlapping attempts can't stack
 }
 
 // Retry the instant the device reports it's back online, rather than
