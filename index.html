@@ -1715,9 +1715,12 @@ function initFirebase(){
     // Let the Firestore SDK persist and retry pending writes itself, so a
     // sale made offline still goes out even if the tab is closed and
     // reopened before the connection returns.
-    try{ fbDb.enablePersistence({ synchronizeTabs: true }).catch(() => {}); }catch(e){}
+    try{ fbDb.enablePersistence({ synchronizeTabs: true }).catch((e) => console.error('[Crown & Stone] enablePersistence failed:', e && (e.code || e.message || e))); }catch(e){}
     return fbDb;
-  }catch(e){ return null; }
+  }catch(e){
+    console.error('[Crown & Stone] initFirebase failed:', e && (e.code || e.message || e));
+    return null;
+  }
 }
 
 // Firestore calls have no built-in timeout — on a bad/lost connection they
@@ -1752,7 +1755,10 @@ async function fsSet(key, value){
     await withTimeout(batch.commit(), 15000);
     cleanupOldChunks(key, chunks.length).catch(() => {});
     return true;
-  }catch(e){ return false; }
+  }catch(e){
+    console.error('[Crown & Stone] Firestore write failed:', e && (e.code || e.message || e));
+    return false;
+  }
 }
 
 async function cleanupOldChunks(key, newCount){
@@ -1784,7 +1790,10 @@ async function fsGet(key){
       result += snap.data().data;
     }
     return result;
-  }catch(e){ return undefined; }
+  }catch(e){
+    console.error('[Crown & Stone] Firestore read failed:', e && (e.code || e.message || e));
+    return undefined;
+  }
 }
 
 // unique per browser tab, so we can tell our own writes apart from a
