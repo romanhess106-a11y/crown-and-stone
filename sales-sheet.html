@@ -220,6 +220,7 @@ const FIREBASE_CONFIG = {
   appId: "1:144781109627:web:23c9f9dd86b31d0d11b5de"
 };
 const FS_COLLECTION = 'crownstone_state';
+const LIVE_SESSION_KEY = 'crown-stone-live-session-v1';
 
 let fbDb = null;
 function initFirebase(){
@@ -232,25 +233,17 @@ function initFirebase(){
   }catch(e){ return null; }
 }
 
-async function fsGet(key){
+// This page only ever needs sales/session tracking — never the catalog or
+// photos — so it reads directly from that small, dedicated, always-atomic
+// document. No chunking, no multi-document reassembly, nothing that could
+// go inconsistent under concurrent access.
+async function fsGetSession(){
   const db = initFirebase();
   if(!db) return undefined;
   try{
-    // Force a real server read every time — Firestore's local cache
-    // (especially with multi-tab persistence) can otherwise silently
-    // return an outdated snapshot instead of what's actually live now.
-    const metaSnap = await db.collection(FS_COLLECTION).doc(key + '_meta').get({ source: 'server' });
-    if(!metaSnap.exists) return undefined;
-    const { chunkCount } = metaSnap.data();
-    const snaps = await Promise.all(
-      Array.from({ length: chunkCount }, (_, i) => db.collection(FS_COLLECTION).doc(`${key}_chunk_${i}`).get({ source: 'server' }))
-    );
-    let result = '';
-    for(const snap of snaps){
-      if(!snap.exists) return undefined;
-      result += snap.data().data;
-    }
-    return result;
+    const snap = await db.collection(FS_COLLECTION).doc(LIVE_SESSION_KEY).get({ source: 'server' });
+    if(!snap.exists) return undefined;
+    return snap.data().json;
   }catch(e){ return undefined; }
 }
 
@@ -258,16 +251,15 @@ let cachedState = { sessionLog: [], liveLotCounter: 0, sessionArchive: [], sessi
 
 async function refreshStateFromFirestore(){
   try{
-    const raw = await fsGet(STORAGE_KEY);
-    if(raw){
-      localStorage.setItem(STORAGE_KEY, raw); // keep a local offline copy too
-      const parsed = JSON.parse(raw);
+    const sessionData = await fsGetSession();
+    if(sessionData){
+      localStorage.setItem(LIVE_SESSION_KEY, JSON.stringify(sessionData)); // keep a local offline copy too
       cachedState = {
-        sessionLog: parsed.sessionLog || [],
-        liveLotCounter: parsed.liveLotCounter || 0,
-        sessionArchive: parsed.sessionArchive || [],
-        sessionStartedAt: parsed.sessionStartedAt || null,
-        liveModeActive: !!parsed.liveModeActive
+        sessionLog: sessionData.sessionLog || [],
+        liveLotCounter: sessionData.liveLotCounter || 0,
+        sessionArchive: sessionData.sessionArchive || [],
+        sessionStartedAt: sessionData.sessionStartedAt || null,
+        liveModeActive: !!sessionData.liveModeActive
       };
       return true;
     }
@@ -275,7 +267,7 @@ async function refreshStateFromFirestore(){
   // Firestore fetch failed (e.g. offline) — fall back to whatever this
   // device last saved locally, rather than showing nothing at all.
   try{
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(LIVE_SESSION_KEY);
     if(raw){
       const parsed = JSON.parse(raw);
       cachedState = {
@@ -295,7 +287,7 @@ function startLiveListener(){
   const db = initFirebase();
   if(!db) return;
   try{
-    db.collection(FS_COLLECTION).doc(STORAGE_KEY + '_meta').onSnapshot(async () => {
+    db.collection(FS_COLLECTION).doc(LIVE_SESSION_KEY).onSnapshot(async () => {
       await refreshStateFromFirestore();
       render();
     });
@@ -504,8 +496,8 @@ async function unlockApp(){
   const debugPanel = document.getElementById('debugPanel');
   const debugLines = [];
   debugLines.push('DIAGNOSTIC INFO — screenshot this box');
-  debugLines.push('CODE VERSION: build-2026-09-04-2013');
-  debugLines.push('source:server forced read: YES');
+  debugLines.push('CODE VERSION: build-2026-09-04-NEW-ARCHITECTURE');
+  debugLines.push('reading from: dedicated live-session document (no chunking)');
   debugLines.push('liveModeActive: ' + JSON.stringify(cachedState.liveModeActive));
   debugLines.push('current sessionLog length: ' + (cachedState.sessionLog || []).length);
   debugLines.push('sessionArchive length: ' + (cachedState.sessionArchive || []).length);
