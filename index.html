@@ -1509,6 +1509,7 @@
     </div>
 
     <div class="archive-list-wrap" id="archiveListWrap">
+      <div id="archiveDebugPanel" style="background:#fff3cd; border:2px solid #d9a441; border-radius:10px; padding:12px; margin:12px; font-family:monospace; font-size:12px; white-space:pre-wrap; color:#333;"></div>
       <div id="archiveListBody"></div>
       <div class="sales-sheet-empty" id="archiveEmpty">No past streams yet — end a live session to start building your archive.</div>
     </div>
@@ -2283,6 +2284,21 @@ function openArchiveOverlay(){
   renderArchiveList();
   closeArchiveDetail();
   document.getElementById('archiveOverlay').style.display = 'flex';
+
+  // Temporary diagnostic — shows exactly what this page currently has in
+  // memory for sessionArchive, to compare directly against the Sales Sheet
+  // page's own diagnostic panel.
+  const panel = document.getElementById('archiveDebugPanel');
+  if(panel){
+    const lines = [];
+    lines.push('DIAGNOSTIC INFO — screenshot this box');
+    lines.push('CODE VERSION: build-2026-09-04-2013');
+    lines.push('sessionArchive length (in-memory, from THIS page load): ' + (state.sessionArchive || []).length);
+    (state.sessionArchive || []).forEach((s, i) => {
+      lines.push(`  archive-${i}: count=${JSON.stringify(s.count)} started=${s.startedAt} ended=${s.endedAt}`);
+    });
+    panel.textContent = lines.join('\n');
+  }
 }
 function closeArchiveOverlay(){
   document.getElementById('archiveOverlay').style.display = 'none';
