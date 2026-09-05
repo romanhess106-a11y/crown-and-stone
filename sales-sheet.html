@@ -504,6 +504,8 @@ async function unlockApp(){
   const debugPanel = document.getElementById('debugPanel');
   const debugLines = [];
   debugLines.push('DIAGNOSTIC INFO — screenshot this box');
+  debugLines.push('CODE VERSION: build-2026-09-04-2013');
+  debugLines.push('source:server forced read: YES');
   debugLines.push('liveModeActive: ' + JSON.stringify(cachedState.liveModeActive));
   debugLines.push('current sessionLog length: ' + (cachedState.sessionLog || []).length);
   debugLines.push('sessionArchive length: ' + (cachedState.sessionArchive || []).length);
