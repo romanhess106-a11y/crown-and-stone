@@ -161,6 +161,7 @@
   </div>
 
   <div class="content">
+    <div id="debugPanel" style="background:#fff3cd; border:2px solid #d9a441; border-radius:10px; padding:16px; margin-bottom:20px; font-family:monospace; font-size:13px; white-space:pre-wrap; color:#333;"></div>
     <h1 class="session-title" id="sessionTitle">Sales Sheet</h1>
     <div class="session-picker">
       <label for="sessionSelect">Viewing:</label>
@@ -496,6 +497,18 @@ async function unlockApp(){
     });
     selectedSessionValue = bestValue;
   }
+
+  const debugPanel = document.getElementById('debugPanel');
+  const debugLines = [];
+  debugLines.push('DIAGNOSTIC INFO — screenshot this box');
+  debugLines.push('liveModeActive: ' + JSON.stringify(cachedState.liveModeActive));
+  debugLines.push('current sessionLog length: ' + (cachedState.sessionLog || []).length);
+  debugLines.push('sessionArchive length: ' + (cachedState.sessionArchive || []).length);
+  (cachedState.sessionArchive || []).forEach((s, i) => {
+    debugLines.push(`  archive-${i}: count=${JSON.stringify(s.count)} (type: ${typeof s.count}) started=${s.startedAt} ended=${s.endedAt}`);
+  });
+  debugLines.push('selectedSessionValue chosen: ' + selectedSessionValue);
+  debugPanel.textContent = debugLines.join('\n');
 
   render();
   startLiveListener();
