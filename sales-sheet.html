@@ -79,19 +79,10 @@
     font-family:var(--serif); font-weight:600; font-size:26px; color:var(--cream);
     margin:0 0 6px;
   }
-  .session-picker{
-    display:flex; align-items:center; gap:10px; margin-bottom:22px; flex-wrap:wrap;
+  .view-note{
+    font-family:var(--mono); font-size:12px; color:var(--cream-dim); margin-bottom:22px;
   }
-  .session-picker label{
-    font-family:var(--mono); font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:var(--cream-dim);
-  }
-  .session-picker select{
-    flex:1; min-width:220px;
-    font-family:var(--mono); font-size:13.5px; color:var(--cream);
-    background:var(--panel); border:1px solid var(--hairline); border-radius:10px;
-    padding:11px 14px; outline:none; cursor:pointer;
-  }
-  .session-picker select:focus{border-color:var(--gold);}
+  .view-note a{color:var(--gold-bright); cursor:pointer; text-decoration:underline;}
 
   .export-row{
     display:flex; gap:10px; margin-bottom:22px; flex-wrap:wrap;
@@ -137,6 +128,29 @@
   .refresh-note{
     text-align:center; margin-top:20px; font-family:var(--mono); font-size:11px; color:var(--cream-dim);
   }
+
+  .past-streams-section{margin-top:56px;}
+  .past-streams-header{
+    font-family:var(--serif); font-weight:600; font-size:19px; color:var(--cream);
+    margin-bottom:14px; padding-top:24px; border-top:1px solid var(--hairline);
+  }
+  .past-stream-row{
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    background:var(--panel); border:1px solid var(--hairline); border-radius:12px;
+    padding:14px 18px; margin-bottom:8px; cursor:pointer; transition:all .15s ease;
+  }
+  .past-stream-row:hover{border-color:var(--gold);}
+  .past-stream-row.active-view{border-color:var(--gold); background:rgba(184,134,63,0.06);}
+  .past-stream-date{font-family:var(--sans); font-size:14px; color:var(--cream); font-weight:600;}
+  .past-stream-stats{font-family:var(--mono); font-size:12px; color:var(--cream-dim); margin-top:2px;}
+  .past-stream-view-btn{
+    font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:0.03em;
+    color:var(--gold-bright); white-space:nowrap;
+  }
+  .no-past-streams{
+    font-family:var(--sans); font-size:13.5px; color:var(--cream-dim); font-style:italic;
+    padding:8px 2px;
+  }
 </style>
 </head>
 <body>
@@ -161,12 +175,8 @@
   </div>
 
   <div class="content">
-    <div id="debugPanel" style="background:#fff3cd; border:2px solid #d9a441; border-radius:10px; padding:16px; margin-bottom:20px; font-family:monospace; font-size:13px; white-space:pre-wrap; color:#333;"></div>
     <h1 class="session-title" id="sessionTitle">Sales Sheet</h1>
-    <div class="session-picker">
-      <label for="sessionSelect">Viewing:</label>
-      <select id="sessionSelect"></select>
-    </div>
+    <div class="view-note" id="viewNote"></div>
 
     <div class="export-row">
       <button class="export-sheet-btn" id="exportSheetBtn">⬇ Export This Sheet</button>
@@ -183,7 +193,7 @@
         <div class="summary-value" id="summaryTotal">$0.00</div>
       </div>
       <div class="summary-card">
-        <div class="summary-label">Next Lot #</div>
+        <div class="summary-label" id="summaryThirdLabel">Next Lot #</div>
         <div class="summary-value" id="summaryNextLot">1</div>
       </div>
     </div>
@@ -197,11 +207,15 @@
     <div class="empty-state" id="emptyState">No sales recorded yet. This page updates automatically the moment a sale is confirmed on the show board.</div>
 
     <div class="refresh-note">Auto-updates live — no need to refresh this page.</div>
+
+    <div class="past-streams-section">
+      <div class="past-streams-header">Past Streams</div>
+      <div id="pastStreamsList"></div>
+    </div>
   </div>
 </div>
 
 <script>
-const STORAGE_KEY = 'crown-stone-show-state-v2';
 const UNLOCK_KEY = 'crown-stone-unlock-v1';
 const APP_PASSWORD = '123456';
 
@@ -235,8 +249,7 @@ function initFirebase(){
 
 // This page only ever needs sales/session tracking — never the catalog or
 // photos — so it reads directly from that small, dedicated, always-atomic
-// document. No chunking, no multi-document reassembly, nothing that could
-// go inconsistent under concurrent access.
+// document. No chunking, no multi-document reassembly.
 async function fsGetSession(){
   const db = initFirebase();
   if(!db) return undefined;
@@ -253,7 +266,7 @@ async function refreshStateFromFirestore(){
   try{
     const sessionData = await fsGetSession();
     if(sessionData){
-      localStorage.setItem(LIVE_SESSION_KEY, JSON.stringify(sessionData)); // keep a local offline copy too
+      localStorage.setItem(LIVE_SESSION_KEY, JSON.stringify(sessionData));
       cachedState = {
         sessionLog: sessionData.sessionLog || [],
         liveLotCounter: sessionData.liveLotCounter || 0,
@@ -264,8 +277,6 @@ async function refreshStateFromFirestore(){
       return true;
     }
   }catch(e){}
-  // Firestore fetch failed (e.g. offline) — fall back to whatever this
-  // device last saved locally, rather than showing nothing at all.
   try{
     const raw = localStorage.getItem(LIVE_SESSION_KEY);
     if(raw){
@@ -294,15 +305,6 @@ function startLiveListener(){
   }catch(e){}
 }
 
-// Always trust the freshly-fetched Firestore data (cachedState), not
-// localStorage directly — localStorage is shared across every page on this
-// site, including the Show Board tab, which writes to it independently.
-// Reading it directly here could show stale or unrelated data from another
-// open tab instead of what's actually live right now.
-function loadState(){
-  return cachedState;
-}
-
 function formatDate(iso){
   if(!iso) return null;
   try{
@@ -312,45 +314,94 @@ function formatDate(iso){
   }catch(e){ return null; }
 }
 
-let selectedSessionValue = 'current';
+// 'live' = whatever's currently live/most recent; 'archive-N' = a specific
+// past stream the person clicked into from the list below.
+let viewMode = 'live';
 
-function populateSessionPicker(state){
-  const select = document.getElementById('sessionSelect');
-  const prevValue = select.value || selectedSessionValue;
-  const options = [];
-  options.push(`<option value="current">Current / Live Session (${state.sessionLog.length} sold)</option>`);
-  state.sessionArchive.forEach((s, i) => {
-    options.push(`<option value="archive-${i}">${formatDate(s.endedAt)} — ${s.count} sold, $${s.total.toFixed(2)}</option>`);
+function pickDefaultView(state){
+  // While a stream is genuinely live, always show it. Otherwise, show
+  // whichever session actually has the most sales — the real stream that
+  // matters, not just whichever happens to be most recent.
+  if(state.liveModeActive) return 'live';
+  let best = 'live';
+  let bestCount = (state.sessionLog || []).length;
+  (state.sessionArchive || []).forEach((s, i) => {
+    if((s.count || 0) > bestCount){
+      bestCount = s.count || 0;
+      best = `archive-${i}`;
+    }
   });
-  select.innerHTML = options.join('');
-  // preserve selection across refreshes if still valid
-  const validValues = ['current', ...state.sessionArchive.map((_,i) => `archive-${i}`)];
-  select.value = validValues.includes(prevValue) ? prevValue : 'current';
-  selectedSessionValue = select.value;
+  return best;
+}
+
+function getViewData(state, mode){
+  if(mode === 'live'){
+    return {
+      log: state.sessionLog || [],
+      nextLot: (state.liveLotCounter || 0) + 1,
+      startedAt: state.sessionStartedAt,
+      isLive: state.liveModeActive
+    };
+  }
+  const idx = parseInt(mode.replace('archive-', ''), 10);
+  const archived = state.sessionArchive[idx];
+  return {
+    log: archived ? archived.log : [],
+    nextLot: null,
+    startedAt: archived ? archived.startedAt : null,
+    isLive: false
+  };
+}
+
+function renderPastStreamsList(state){
+  const wrap = document.getElementById('pastStreamsList');
+  if(!state.sessionArchive || state.sessionArchive.length === 0){
+    wrap.innerHTML = '<div class="no-past-streams">No completed streams yet — end a live session to start building your history.</div>';
+    return;
+  }
+  wrap.innerHTML = state.sessionArchive.map((s, i) => {
+    const mode = `archive-${i}`;
+    const label = formatDate(s.startedAt) || formatDate(s.endedAt) || 'Past stream';
+    const isActive = viewMode === mode;
+    return `
+      <div class="past-stream-row ${isActive ? 'active-view' : ''}" data-mode="${mode}">
+        <div>
+          <div class="past-stream-date">${escapeHtml(label)}</div>
+          <div class="past-stream-stats">${s.count} sold · $${(s.total||0).toFixed(2)} cost · $${(s.retailTotal||0).toFixed(2)} retail</div>
+        </div>
+        <div class="past-stream-view-btn">${isActive ? '● Viewing' : 'View →'}</div>
+      </div>
+    `;
+  }).join('');
+  wrap.querySelectorAll('.past-stream-row').forEach(row => {
+    row.addEventListener('click', () => {
+      viewMode = row.getAttribute('data-mode');
+      render();
+    });
+  });
 }
 
 function render(){
-  const state = loadState();
-  populateSessionPicker(state);
+  const state = cachedState;
+  const data = getViewData(state, viewMode);
+  const { log, nextLot, startedAt, isLive } = data;
 
-  let log, nextLot, startedAt;
-  if(selectedSessionValue === 'current'){
-    log = state.sessionLog || [];
-    nextLot = (state.liveLotCounter || 0) + 1;
-    startedAt = state.sessionStartedAt;
-    document.getElementById('liveStatus').style.display = 'flex';
-  } else {
-    const idx = parseInt(selectedSessionValue.replace('archive-',''), 10);
-    const archived = state.sessionArchive[idx];
-    log = archived ? archived.log : [];
-    nextLot = null;
-    startedAt = archived ? archived.startedAt : null;
-    document.getElementById('liveStatus').style.display = 'none';
-  }
+  document.getElementById('liveStatus').style.display = isLive ? 'flex' : 'none';
 
   const titleEl = document.getElementById('sessionTitle');
   const startedLabel = formatDate(startedAt);
   titleEl.textContent = startedLabel ? `Sales Sheet — Started ${startedLabel}` : 'Sales Sheet';
+
+  const viewNote = document.getElementById('viewNote');
+  if(viewMode !== 'live' || !isLive){
+    viewNote.innerHTML = isLive
+      ? ''
+      : (viewMode === 'live' ? 'Showing your most recent stream.' : 'Viewing a past stream. <a id="backToLiveLink">Back to current view</a>');
+    const link = document.getElementById('backToLiveLink');
+    if(link) link.addEventListener('click', () => { viewMode = 'live'; render(); });
+  } else {
+    viewNote.textContent = '';
+  }
 
   const sorted = [...log].sort((a,b) => a.lot - b.lot);
 
@@ -358,7 +409,7 @@ function render(){
   const total = log.reduce((sum, s) => sum + parseFloat(s.price || 0), 0);
   document.getElementById('summaryTotal').textContent = '$' + total.toFixed(2);
   document.getElementById('summaryNextLot').textContent = nextLot !== null ? nextLot : '—';
-  document.querySelector('.summary-card:nth-child(3) .summary-label').textContent = nextLot !== null ? 'Next Lot #' : 'Session Ended';
+  document.getElementById('summaryThirdLabel').textContent = nextLot !== null ? 'Next Lot #' : 'Session Ended';
 
   const table = document.getElementById('salesTable');
   const empty = document.getElementById('emptyState');
@@ -367,21 +418,22 @@ function render(){
   if(sorted.length === 0){
     table.style.display = 'none';
     empty.style.display = 'block';
-    empty.textContent = selectedSessionValue === 'current'
+    empty.textContent = isLive
       ? 'No sales recorded yet. This page updates automatically the moment a sale is confirmed on the show board.'
       : 'No sales were recorded in this session.';
-    return;
+  } else {
+    table.style.display = 'table';
+    empty.style.display = 'none';
+    body.innerHTML = sorted.map(s => `
+      <tr>
+        <td class="lot-cell">#${escapeHtml(s.lot)}</td>
+        <td class="num-cell">${s.num ? String(s.num).padStart(2,'0') : '—'}</td>
+        <td>${escapeHtml(s.name)}</td>
+      </tr>
+    `).join('');
   }
-  table.style.display = 'table';
-  empty.style.display = 'none';
 
-  body.innerHTML = sorted.map(s => `
-    <tr>
-      <td class="lot-cell">#${escapeHtml(s.lot)}</td>
-      <td class="num-cell">${s.num ? String(s.num).padStart(2,'0') : '—'}</td>
-      <td>${escapeHtml(s.name)}</td>
-    </tr>
-  `).join('');
+  renderPastStreamsList(state);
 }
 
 function csvEscape(val){
@@ -407,34 +459,17 @@ function safeFilenamePart(str){
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  const select = document.getElementById('sessionSelect');
-  if(select){
-    select.addEventListener('change', () => {
-      selectedSessionValue = select.value;
-      render();
-    });
-  }
-
   document.getElementById('exportSheetBtn').addEventListener('click', () => {
-    const state = loadState();
-    let log, label;
-    if(selectedSessionValue === 'current'){
-      log = state.sessionLog || [];
-      label = formatDate(state.sessionStartedAt) || 'current-session';
-    } else {
-      const idx = parseInt(selectedSessionValue.replace('archive-',''), 10);
-      const archived = state.sessionArchive[idx];
-      log = archived ? archived.log : [];
-      label = (archived && formatDate(archived.startedAt)) || 'session';
-    }
-    const sorted = [...log].sort((a,b) => a.lot - b.lot);
+    const data = getViewData(cachedState, viewMode);
+    const label = formatDate(data.startedAt) || 'session';
+    const sorted = [...data.log].sort((a,b) => a.lot - b.lot);
     const rows = [['Lot', 'Item No.', 'Description']]
       .concat(sorted.map(s => [s.lot, s.num ? String(s.num).padStart(2,'0') : '—', s.name]));
     downloadCSV(`crown-and-stone-sales-${safeFilenamePart(label)}.csv`, rows);
   });
 
   document.getElementById('exportAllBtn').addEventListener('click', () => {
-    const state = loadState();
+    const state = cachedState;
     const rows = [['Session Started', 'Lot', 'Item No.', 'Description']];
 
     const currentLabel = formatDate(state.sessionStartedAt) || 'Current session';
@@ -457,56 +492,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// live cross-tab updates: fires in THIS tab whenever another tab (the show
-// board) writes to localStorage.
-window.addEventListener('storage', (e) => {
-  if(e.key === STORAGE_KEY){
-    render();
-  }
-});
-
-// fallback polling in case the storage event doesn't fire in some browser contexts
+// fallback polling in case the live listener misses an update for any reason
 setInterval(render, 4000);
 
-// --- lock screen ---
 async function unlockApp(){
   document.getElementById('lockScreen').style.display = 'none';
   document.getElementById('appRoot').classList.remove('app-hidden');
   await refreshStateFromFirestore();
-
-  // If there's no genuinely active live session right now, and the
-  // "current" session has clearly fewer sales than the most recent
-  // completed stream, default to showing that stream instead — much more
-  // useful than a stray near-empty test session.
-  // Default to whichever session — current or any archive — actually has
-  // the most real sales, not just whichever is most recent. Test sessions
-  // from debugging can land after a real stream and bury it otherwise.
-  if(!cachedState.liveModeActive){
-    let bestValue = 'current';
-    let bestCount = (cachedState.sessionLog || []).length;
-    (cachedState.sessionArchive || []).forEach((s, i) => {
-      if((s.count || 0) > bestCount){
-        bestCount = s.count || 0;
-        bestValue = `archive-${i}`;
-      }
-    });
-    selectedSessionValue = bestValue;
-  }
-
-  const debugPanel = document.getElementById('debugPanel');
-  const debugLines = [];
-  debugLines.push('DIAGNOSTIC INFO — screenshot this box');
-  debugLines.push('CODE VERSION: build-2026-09-04-NEW-ARCHITECTURE');
-  debugLines.push('reading from: dedicated live-session document (no chunking)');
-  debugLines.push('liveModeActive: ' + JSON.stringify(cachedState.liveModeActive));
-  debugLines.push('current sessionLog length: ' + (cachedState.sessionLog || []).length);
-  debugLines.push('sessionArchive length: ' + (cachedState.sessionArchive || []).length);
-  (cachedState.sessionArchive || []).forEach((s, i) => {
-    debugLines.push(`  archive-${i}: count=${JSON.stringify(s.count)} (type: ${typeof s.count}) started=${s.startedAt} ended=${s.endedAt}`);
-  });
-  debugLines.push('selectedSessionValue chosen: ' + selectedSessionValue);
-  debugPanel.textContent = debugLines.join('\n');
-
+  viewMode = pickDefaultView(cachedState);
   render();
   startLiveListener();
 }
