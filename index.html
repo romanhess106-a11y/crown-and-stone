@@ -1712,6 +1712,38 @@ const FIREBASE_CONFIG = {
 const FS_COLLECTION = 'crownstone_state';
 const FS_CHUNK_SIZE = 700000; // chars — safely under Firestore's 1MB doc cap
 
+// Live sales tracking gets its OWN separate, simple document — completely
+// independent from the catalog/photos storage above. This data (lot
+// numbers, sold items, timestamps) is always small plain text, so it never
+// needs chunking, and a single document read/write is atomic by nature —
+// no possibility of the multi-document inconsistency that chunking risked.
+const LIVE_SESSION_KEY = 'crown-stone-live-session-v1';
+
+async function fsGetSimple(key){
+  const db = initFirebase();
+  if(!db) return undefined;
+  try{
+    const snap = await withTimeout(db.collection(FS_COLLECTION).doc(key).get({ source: 'server' }), 6000);
+    if(!snap.exists) return undefined;
+    return snap.data().json;
+  }catch(e){
+    console.error('[Crown & Stone] session data read failed:', e && (e.code || e.message || e));
+    return undefined;
+  }
+}
+
+async function fsSetSimple(key, obj){
+  const db = initFirebase();
+  if(!db) return false;
+  try{
+    await withTimeout(db.collection(FS_COLLECTION).doc(key).set({ json: obj, updatedAt: Date.now(), updatedBy: clientInstanceId }), 9000);
+    return true;
+  }catch(e){
+    console.error('[Crown & Stone] session data write failed:', e && (e.code || e.message || e));
+    return false;
+  }
+}
+
 let fbDb = null;
 function initFirebase(){
   if(fbDb) return fbDb;
@@ -1817,14 +1849,16 @@ function startLiveListener(key){
   const db = initFirebase();
   if(!db || liveListenerUnsub) return;
   try{
-    liveListenerUnsub = db.collection(FS_COLLECTION).doc(key + '_meta')
-      .onSnapshot((snap) => {
-        if(!snap.exists) return;
-        if(Date.now() < recentLocalWriteUntil) return; // ignore echoes of our own recent save
-        const data = snap.data();
-        if(data.updatedBy === clientInstanceId) return; // extra safety: our own write, ignore
-        if(typeof onRemoteUpdate === 'function') onRemoteUpdate();
-      });
+    const handleSnapshot = (snap) => {
+      if(!snap.exists) return;
+      if(Date.now() < recentLocalWriteUntil) return; // ignore echoes of our own recent save
+      const data = snap.data();
+      if(data.updatedBy === clientInstanceId) return; // extra safety: our own write, ignore
+      if(typeof onRemoteUpdate === 'function') onRemoteUpdate();
+    };
+    const catalogUnsub = db.collection(FS_COLLECTION).doc(key + '_meta').onSnapshot(handleSnapshot);
+    const sessionUnsub = db.collection(FS_COLLECTION).doc(LIVE_SESSION_KEY).onSnapshot(handleSnapshot);
+    liveListenerUnsub = () => { catalogUnsub(); sessionUnsub(); };
   }catch(e){}
 }
 
@@ -1887,18 +1921,70 @@ let currentQuery = '';
 let focusIndex = 0;
 
 async function loadState(){
+  // Catalog data (items, photos, custom order) — unchanged, still the
+  // existing chunked storage. Session/sales tracking is handled separately
+  // below now, for reliability.
+  let catalogPart = { overlay: {}, order: null, duplicates: {} };
+  let legacySessionFields = null;
   try{
     const res = await storageAdapter.get(STORAGE_KEY);
     if(res && res.value){
       const parsed = JSON.parse(res.value);
       if(parsed && parsed.overlay){
-        state = { overlay: parsed.overlay || {}, order: parsed.order || null, duplicates: parsed.duplicates || {}, liveLotCounter: parsed.liveLotCounter || 0, sessionLog: parsed.sessionLog || [], sessionArchive: parsed.sessionArchive || [], sessionStartedAt: parsed.sessionStartedAt || null, liveModeActive: !!parsed.liveModeActive };
+        catalogPart = { overlay: parsed.overlay || {}, order: parsed.order || null, duplicates: parsed.duplicates || {} };
+        if(parsed.sessionArchive || parsed.sessionLog){
+          // an older save had session data bundled in here — keep it as a
+          // fallback in case the new dedicated storage hasn't been written yet
+          legacySessionFields = {
+            liveLotCounter: parsed.liveLotCounter || 0,
+            sessionLog: parsed.sessionLog || [],
+            sessionArchive: parsed.sessionArchive || [],
+            sessionStartedAt: parsed.sessionStartedAt || null,
+            liveModeActive: !!parsed.liveModeActive
+          };
+        }
       } else if(parsed){
-        // legacy flat map format
-        state = { overlay: parsed, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [], sessionStartedAt: null, liveModeActive: false };
+        catalogPart = { overlay: parsed, order: null, duplicates: {} };
       }
     }
-  }catch(e){ state = { overlay: {}, order: null, duplicates: {}, liveLotCounter: 0, sessionLog: [], sessionArchive: [], sessionStartedAt: null, liveModeActive: false }; }
+  }catch(e){}
+
+  // Session/sales tracking — the new, simple, always-atomic storage.
+  let sessionPart = { liveLotCounter: 0, sessionLog: [], sessionArchive: [], sessionStartedAt: null, liveModeActive: false };
+  let foundInNewStorage = false;
+  try{
+    const sessionData = await fsGetSimple(LIVE_SESSION_KEY);
+    if(sessionData){
+      sessionPart = {
+        liveLotCounter: sessionData.liveLotCounter || 0,
+        sessionLog: sessionData.sessionLog || [],
+        sessionArchive: sessionData.sessionArchive || [],
+        sessionStartedAt: sessionData.sessionStartedAt || null,
+        liveModeActive: !!sessionData.liveModeActive
+      };
+      foundInNewStorage = true;
+    }
+  }catch(e){}
+
+  if(!foundInNewStorage){
+    // First run since this upgrade, or offline — fall back to a locally
+    // cached copy if there is one, then the legacy bundled data, in that order.
+    try{
+      const cached = localStorage.getItem(LIVE_SESSION_KEY);
+      if(cached){
+        sessionPart = JSON.parse(cached);
+        foundInNewStorage = true;
+      }
+    }catch(e){}
+    if(!foundInNewStorage && legacySessionFields){
+      sessionPart = legacySessionFields;
+    }
+    // migrate forward into the new, reliable storage so this only ever
+    // has to happen once
+    fsSetSimple(LIVE_SESSION_KEY, sessionPart).catch(() => {});
+  }
+
+  state = { ...catalogPart, ...sessionPart };
 }
 // Takes a Full Backup JSON file and makes it the exact, authoritative state
 // of the live shared catalog — including photos. Anything currently live
@@ -1963,10 +2049,30 @@ async function restoreFromBackup(backupItems){
 
 async function saveState(){
   recentLocalWriteUntil = Date.now() + 4000;
+
+  const catalogPayload = JSON.stringify({ overlay: state.overlay, order: state.order, duplicates: state.duplicates });
+  const sessionPayload = {
+    liveLotCounter: state.liveLotCounter,
+    sessionLog: state.sessionLog,
+    sessionArchive: state.sessionArchive,
+    sessionStartedAt: state.sessionStartedAt,
+    liveModeActive: state.liveModeActive
+  };
+
   let res = null;
+  let sessionOk = false;
   try{
-    res = await storageAdapter.set(STORAGE_KEY, JSON.stringify(state));
-  }catch(e){ res = null; }
+    const results = await Promise.all([
+      storageAdapter.set(STORAGE_KEY, catalogPayload),
+      fsSetSimple(LIVE_SESSION_KEY, sessionPayload)
+    ]);
+    res = results[0];
+    sessionOk = results[1];
+  }catch(e){ res = null; sessionOk = false; }
+
+  // Always keep a local cache of session data too, for offline resilience.
+  try{ localStorage.setItem(LIVE_SESSION_KEY, JSON.stringify(sessionPayload)); }catch(e){}
+  idbSet(LIVE_SESSION_KEY, JSON.stringify(sessionPayload)).catch(() => {});
 
   if(!res || !res.local){
     // Genuinely could not write to this device. This is the only case
@@ -1974,7 +2080,7 @@ async function saveState(){
     setSyncStatus('local-failed');
     return false;
   }
-  if(res.remote){
+  if(res.remote && sessionOk){
     setSyncStatus('synced');
     flashSavedIndicator();
     return true;
@@ -2292,7 +2398,7 @@ function openArchiveOverlay(){
   if(panel){
     const lines = [];
     lines.push('DIAGNOSTIC INFO — screenshot this box');
-    lines.push('CODE VERSION: build-2026-09-04-2013');
+    lines.push('CODE VERSION: build-2026-09-04-NEW-ARCHITECTURE');
     lines.push('sessionArchive length (in-memory, from THIS page load): ' + (state.sessionArchive || []).length);
     (state.sessionArchive || []).forEach((s, i) => {
       lines.push(`  archive-${i}: count=${JSON.stringify(s.count)} started=${s.startedAt} ended=${s.endedAt}`);
@@ -2426,6 +2532,7 @@ async function setLiveActive(active, customStartDate){
       });
       // keep the archive from growing without bound
       if(state.sessionArchive.length > 30) state.sessionArchive = state.sessionArchive.slice(0, 30);
+      state.sessionLog = []; // clear immediately — don't wait for the next Start Live
       showSessionEndedModal(log.length, total);
       scheduleSave();
     } else {
