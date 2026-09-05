@@ -1784,11 +1784,14 @@ async function fsGet(key){
   const db = initFirebase();
   if(!db) return undefined;
   try{
-    const metaSnap = await withTimeout(db.collection(FS_COLLECTION).doc(key + '_meta').get(), 6000);
+    // Force a real server read every time — Firestore's local cache
+    // (especially with multi-tab persistence) can otherwise silently
+    // return an outdated snapshot instead of what's actually live now.
+    const metaSnap = await withTimeout(db.collection(FS_COLLECTION).doc(key + '_meta').get({ source: 'server' }), 6000);
     if(!metaSnap.exists) return undefined;
     const { chunkCount } = metaSnap.data();
     const snaps = await withTimeout(Promise.all(
-      Array.from({ length: chunkCount }, (_, i) => db.collection(FS_COLLECTION).doc(`${key}_chunk_${i}`).get())
+      Array.from({ length: chunkCount }, (_, i) => db.collection(FS_COLLECTION).doc(`${key}_chunk_${i}`).get({ source: 'server' }))
     ), 8000);
     let result = '';
     for(const snap of snaps){
