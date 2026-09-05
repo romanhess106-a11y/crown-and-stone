@@ -1217,24 +1217,24 @@
   .app-hidden{display:none !important;}
 
   .save-error-banner{
-    position:sticky; top:0; z-index:400;
+    position:fixed; bottom:24px; right:24px; z-index:400;
     background:var(--danger); color:#fff;
-    font-family:var(--sans); font-size:14px; font-weight:600; line-height:1.5;
-    padding:14px 50px 14px 20px;
-    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
-    box-shadow:0 4px 16px rgba(193,84,74,0.3);
+    font-family:var(--sans); font-size:12.5px; font-weight:600; line-height:1.4;
+    padding:10px 34px 10px 14px;
+    display:flex; align-items:center; gap:8px;
+    border-radius:12px; max-width:280px;
+    box-shadow:0 8px 24px rgba(193,84,74,0.35);
   }
   .save-error-dismiss{
-    position:absolute; right:16px; top:50%; transform:translateY(-50%);
-    background:none; border:none; color:#fff; font-size:18px; cursor:pointer;
-    width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-    transition:background .15s ease;
+    position:absolute; right:8px; top:50%; transform:translateY(-50%);
+    background:none; border:none; color:#fff; font-size:15px; cursor:pointer;
+    width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    transition:background .15s ease; opacity:0.85;
   }
-  .save-error-dismiss:hover{background:rgba(255,255,255,0.2);}
+  .save-error-dismiss:hover{background:rgba(255,255,255,0.2); opacity:1;}
   .save-error-banner.sync-pending{
     background:#8a6a1f; color:#fff;
-    box-shadow:0 4px 16px rgba(138,106,31,0.28);
-    padding:14px 20px;
+    box-shadow:0 8px 24px rgba(138,106,31,0.3);
   }
 
   .lock-screen{
@@ -1295,7 +1295,7 @@
 
 <div id="appRoot" class="app-hidden">
 <div class="save-error-banner" id="saveErrorBanner" style="display:none;">
-  <span id="saveErrorText">⚠ Couldn't sync this change to the shared database. It's saved on this device only for now — check your internet connection. It'll sync automatically once you're back online.</span>
+  <span id="saveErrorText">⚠ Not synced yet — saved locally.</span>
   <button class="save-error-dismiss" id="saveErrorDismiss">✕</button>
 </div>
 <div class="hero">
@@ -2185,11 +2185,11 @@ function renderSyncBanner(){
   }
   if(syncStatus === 'pending'){
     banner.className = 'save-error-banner sync-pending';
-    text.textContent = '↻ Saved on this device. Waiting on the connection to share it with your other devices — your sales are recorded either way.';
+    text.textContent = '↻ Saved here. Syncing to other devices…';
     if(dismiss) dismiss.style.display = 'none';
   } else {
     banner.className = 'save-error-banner';
-    text.textContent = '⚠ This device could not save. Do not close this tab — write down any sales made since the last save.';
+    text.textContent = "⚠ Couldn't save. Don't close this tab.";
     if(dismiss) dismiss.style.display = 'none';
   }
   banner.style.display = 'flex';
